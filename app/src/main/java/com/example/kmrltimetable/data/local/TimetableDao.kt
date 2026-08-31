@@ -12,6 +12,7 @@ import com.example.kmrltimetable.data.local.entity.SyncMetadataEntity
 import com.example.kmrltimetable.data.local.entity.TimetableEntity
 import com.example.kmrltimetable.data.local.entity.TripEntity
 import com.example.kmrltimetable.data.local.entity.JourneyResult
+import com.example.kmrltimetable.data.local.entity.StationTrainResult
 import kotlinx.coroutines.flow.Flow
 
 @Dao
@@ -86,6 +87,25 @@ interface TimetableDao {
         timeStr: String,
         limit: Int = 50
     ): List<JourneyResult>
+
+    @Query("""
+        SELECT
+            t.train_no as train_no,
+            t.direction as direction,
+            st.departure_time as departure_time
+        FROM stop_times st
+        INNER JOIN trips t ON st.trip_id = t.id
+        WHERE t.timetable_id = :timetableId
+          AND st.station_id = :stationId
+          AND st.departure_time IS NOT NULL
+        ORDER BY st.departure_time ASC
+    """)
+    fun getStationTimings(timetableId: Int, stationId: Int): List<StationTrainResult>
+
+    @Query("""
+        SELECT count(*) FROM trips WHERE timetable_id = :timetableId
+    """)
+    fun getTripCountForTimetable(timetableId: Int): Int
 
     @Query("SELECT * FROM trips WHERE id = :tripId")
     fun getTrip(tripId: Int): TripEntity?

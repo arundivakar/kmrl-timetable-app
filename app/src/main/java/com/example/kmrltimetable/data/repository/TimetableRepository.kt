@@ -4,6 +4,7 @@ import com.example.kmrltimetable.data.local.TimetableDao
 import com.example.kmrltimetable.data.local.entity.ScheduleOverrideEntity
 import com.example.kmrltimetable.data.local.entity.StationEntity
 import com.example.kmrltimetable.data.local.entity.JourneyResult
+import com.example.kmrltimetable.data.local.entity.StationTrainResult
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -59,5 +60,39 @@ class TimetableRepository(
             limit = limit
         )
         return@withContext Pair(timetableName, results)
+    }
+
+    /** 
+     * Get all trains calling at a given station for both directions.
+     * Resolves the correct timetable for the date (respecting overrides + day defaults).
+     */
+    suspend fun getStationTimings(
+        stationId: Int,
+        currentDate: Date = Date()
+    ): Triple<String, List<StationTrainResult>, List<StationTrainResult>> = withContext(Dispatchers.IO) {
+        // Determine timetable (identical logic to getUpcomingTrains)
+        val dateFormat = SimpleDateFormat("yyyy-MM-dd", Locale.US)
+        val dateStr = dateFormat.format(currentDate)
+
+        val override = dao.getOverrideForDate(dateStr)
+        val timetableName = if (override != null) {
+            override.timetableName
+        } else {
+            val cal = Calendar.getInstance().apply { time = currentDate }
+            val dayOfWeek = (cal.get(Calendar.DAY_OF_WEEK) + 5) % 7
+            dao.getDefaultTimetableForDay(dayOfWeek)?.timetableName
+                ?: return@withContext Triple("Unknown", emptyList(), emptyList())
+        }
+
+        val timetable = dao.getTimetableByName(timetableName)
+            ?: return@withContext Triple(timetableName, emptyList(), emptyList())
+
+        val all = dao.getStationTimings(timetable.id, stationId)
+
+        // UP = towards TPHT (station sequence increases), DOWN = towards Aluva
+        val upTrains   = all.filter { it.direction == "UP" }
+        val downTrains = all.filter { it.direction == "DOWN" }
+
+        return@withContext Triple(timetableName, upTrains, downTrains)
     }
 }

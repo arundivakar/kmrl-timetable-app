@@ -10,6 +10,13 @@ data class JourneyResult(
     @ColumnInfo(name = "arrival_time") val arrivalTime: String
 )
 
+/** Result for the Station Timings feature — one train calling at a specific station */
+data class StationTrainResult(
+    @ColumnInfo(name = "train_no") val trainNo: String,
+    @ColumnInfo(name = "direction") val direction: String,    // "UP" = towards TPHT, "DOWN" = towards Aluva
+    @ColumnInfo(name = "departure_time") val departureTime: String  // time at this station
+)
+
 @Entity(tableName = "stations")
 data class StationEntity(
     @PrimaryKey

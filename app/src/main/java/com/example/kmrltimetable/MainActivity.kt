@@ -14,6 +14,7 @@ import androidx.compose.material.icons.filled.AdminPanelSettings
 import androidx.compose.material.icons.filled.DateRange
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.List
+import androidx.compose.material.icons.outlined.DirectionsSubway
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
@@ -28,8 +29,10 @@ import com.example.kmrltimetable.ui.TimetableViewModelFactory
 import com.example.kmrltimetable.ui.admin.AdminScreen
 import com.example.kmrltimetable.ui.admin.AdminViewModel
 import com.example.kmrltimetable.ui.screens.FullTimetableScreen
+import com.example.kmrltimetable.ui.screens.StationTimingsScreen
 import com.example.kmrltimetable.ui.screens.TodayScreen
 import com.example.kmrltimetable.ui.screens.TomorrowScreen
+import com.example.kmrltimetable.ui.stations.StationTimingsViewModel
 import com.example.kmrltimetable.ui.theme.KmrlTeal
 import com.example.kmrltimetable.ui.theme.KmrlTheme
 import com.example.kmrltimetable.ui.theme.TextGrey
@@ -38,6 +41,7 @@ enum class NavTab(val title: String, val icon: ImageVector, val showInBar: Boole
     TODAY("Today", Icons.Default.Home),
     TOMORROW("Tomorrow", Icons.Default.DateRange),
     FULL("Full", Icons.Default.List),
+    STATION("Station", Icons.Outlined.DirectionsSubway),
     ADMIN("Admin", Icons.Default.AdminPanelSettings, showInBar = false)
 }
 
@@ -70,13 +74,21 @@ fun MainScreen(viewModel: TimetableViewModel) {
     var selectedTab by remember { mutableStateOf(NavTab.TODAY) }
     var logoTapCount by remember { mutableIntStateOf(0) }
 
-    // AdminViewModel — created lazily, shares the same DAO
+    // ViewModels — created lazily with access to the shared repository/DAO
     val app = androidx.compose.ui.platform.LocalContext.current.applicationContext as KMRLApplication
     val adminViewModel: AdminViewModel = viewModel(
         factory = object : androidx.lifecycle.ViewModelProvider.Factory {
             override fun <T : androidx.lifecycle.ViewModel> create(modelClass: Class<T>): T {
                 @Suppress("UNCHECKED_CAST")
                 return AdminViewModel(app.database.timetableDao()) as T
+            }
+        }
+    )
+    val stationViewModel: StationTimingsViewModel = viewModel(
+        factory = object : androidx.lifecycle.ViewModelProvider.Factory {
+            override fun <T : androidx.lifecycle.ViewModel> create(modelClass: Class<T>): T {
+                @Suppress("UNCHECKED_CAST")
+                return StationTimingsViewModel(app.repository) as T
             }
         }
     )
@@ -137,6 +149,7 @@ fun MainScreen(viewModel: TimetableViewModel) {
                 NavTab.TODAY    -> TodayScreen(viewModel)
                 NavTab.TOMORROW -> TomorrowScreen(viewModel)
                 NavTab.FULL     -> FullTimetableScreen(viewModel)
+                NavTab.STATION  -> StationTimingsScreen(stationViewModel)
                 NavTab.ADMIN    -> AdminScreen(adminViewModel)
             }
         }
