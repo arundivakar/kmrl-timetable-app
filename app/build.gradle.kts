@@ -3,6 +3,7 @@ plugins {
   alias(libs.plugins.compose.compiler)
   alias(libs.plugins.kotlin.serialization)
   alias(libs.plugins.ksp)
+  alias(libs.plugins.google.services)
 }
 
 android {
@@ -92,6 +93,7 @@ dependencies {
   // Firebase
   implementation(platform(libs.firebase.bom))
   implementation(libs.firebase.database)
+  implementation(libs.firebase.auth)
 
   // WorkManager
   implementation(libs.work.runtime.ktx)

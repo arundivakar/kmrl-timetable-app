@@ -1,11 +1,14 @@
 package com.example.kmrltimetable.data.local
 
 import androidx.room.Dao
+import androidx.room.Insert
+import androidx.room.OnConflictStrategy
 import androidx.room.Query
 import com.example.kmrltimetable.data.local.entity.DayDefaultEntity
 import com.example.kmrltimetable.data.local.entity.ScheduleOverrideEntity
 import com.example.kmrltimetable.data.local.entity.StationEntity
 import com.example.kmrltimetable.data.local.entity.StopTimeEntity
+import com.example.kmrltimetable.data.local.entity.SyncMetadataEntity
 import com.example.kmrltimetable.data.local.entity.TimetableEntity
 import com.example.kmrltimetable.data.local.entity.TripEntity
 import com.example.kmrltimetable.data.local.entity.JourneyResult
@@ -14,11 +17,34 @@ import kotlinx.coroutines.flow.Flow
 @Dao
 interface TimetableDao {
     
+    // ------ Stations ------
+
     @Query("SELECT * FROM stations ORDER BY sequence ASC")
     fun getAllStations(): Flow<List<StationEntity>>
 
+    @Query("SELECT * FROM stations WHERE id = :stationId")
+    fun getStation(stationId: Int): StationEntity?
+
+    // ------ Timetables ------
+
+    @Query("SELECT * FROM timetables")
+    fun getAllTimetables(): List<TimetableEntity>
+
+    @Query("SELECT * FROM timetables WHERE name = :name LIMIT 1")
+    fun getTimetableByName(name: String): TimetableEntity?
+
+    // ------ Day defaults ------
+
     @Query("SELECT * FROM day_defaults")
     fun getDayDefaults(): List<DayDefaultEntity>
+
+    @Query("SELECT * FROM day_defaults WHERE day_of_week = :dayOfWeek LIMIT 1")
+    fun getDefaultTimetableForDay(dayOfWeek: Int): DayDefaultEntity?
+
+    @Query("UPDATE day_defaults SET timetable_name = :timetableName WHERE day_of_week = :dayOfWeek")
+    fun updateDayDefault(dayOfWeek: Int, timetableName: String)
+
+    // ------ Schedule overrides (date-specific assignments) ------
 
     @Query("SELECT * FROM schedule_overrides")
     fun getScheduleOverrides(): List<ScheduleOverrideEntity>
@@ -26,11 +52,13 @@ interface TimetableDao {
     @Query("SELECT * FROM schedule_overrides WHERE override_date = :dateStr LIMIT 1")
     fun getOverrideForDate(dateStr: String): ScheduleOverrideEntity?
 
-    @Query("SELECT * FROM day_defaults WHERE day_of_week = :dayOfWeek LIMIT 1")
-    fun getDefaultTimetableForDay(dayOfWeek: Int): DayDefaultEntity?
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    fun insertOverrides(overrides: List<ScheduleOverrideEntity>)
 
-    @Query("SELECT * FROM timetables WHERE name = :name LIMIT 1")
-    fun getTimetableByName(name: String): TimetableEntity?
+    @Query("DELETE FROM schedule_overrides")
+    fun clearAllOverrides()
+
+    // ------ Train query ------
 
     @Query("""
         SELECT 
@@ -58,10 +86,19 @@ interface TimetableDao {
         timeStr: String,
         limit: Int = 50
     ): List<JourneyResult>
-    
+
     @Query("SELECT * FROM trips WHERE id = :tripId")
     fun getTrip(tripId: Int): TripEntity?
-    
-    @Query("SELECT * FROM stations WHERE id = :stationId")
-    fun getStation(stationId: Int): StationEntity?
+
+    // ------ Sync metadata ------
+
+    @Query("SELECT * FROM sync_metadata WHERE `key` = :key LIMIT 1")
+    fun getSyncMetadata(key: String): SyncMetadataEntity?
+
+    @Query("SELECT * FROM sync_metadata")
+    fun getAllSyncMetadata(): List<SyncMetadataEntity>
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    fun upsertSyncMetadata(metadata: SyncMetadataEntity)
 }
+
