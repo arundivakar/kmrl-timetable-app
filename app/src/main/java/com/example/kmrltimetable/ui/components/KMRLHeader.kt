@@ -1,5 +1,7 @@
 package com.example.kmrltimetable.ui.components
 
+import androidx.compose.foundation.Image
+
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -23,6 +25,8 @@ import com.example.kmrltimetable.ui.theme.*
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
+import androidx.compose.ui.res.painterResource
+import com.example.kmrltimetable.R
 
 @Composable
 fun HeaderBlock(currentTime: Date, isTomorrow: Boolean = false) {
@@ -37,16 +41,20 @@ fun HeaderBlock(currentTime: Date, isTomorrow: Boolean = false) {
                 Icon(Icons.Default.Menu, contentDescription = "Menu", tint = TextDark)
             }
             
-            // KMRL Logo Text
-            val logoText = buildAnnotatedString {
-                withStyle(style = SpanStyle(color = KmrlLime, fontWeight = FontWeight.Black)) { append("K") }
-                withStyle(style = SpanStyle(color = KmrlTeal, fontWeight = FontWeight.Black)) { append("M") }
-                withStyle(style = SpanStyle(color = KmrlLime, fontWeight = FontWeight.Black)) { append("R") }
-                withStyle(style = SpanStyle(color = KmrlTeal, fontWeight = FontWeight.Black)) { append("L") }
-                append(" ")
-                withStyle(style = SpanStyle(color = KmrlTeal, fontWeight = FontWeight.Bold)) { append("TIMETABLE") }
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Image(
+                    painter = painterResource(id = R.drawable.kmrl_logo),
+                    contentDescription = "KMRL Logo",
+                    modifier = Modifier.height(32.dp).padding(end = 8.dp)
+                )
+                
+                // Headline Text
+                val logoText = buildAnnotatedString {
+                    withStyle(style = SpanStyle(color = KmrlTeal, fontWeight = FontWeight.Bold)) { append("KMRL ") }
+                    withStyle(style = SpanStyle(color = KmrlLime, fontWeight = FontWeight.Bold)) { append("TRAIN FINDER") }
+                }
+                Text(text = logoText, fontSize = 18.sp, letterSpacing = 0.5.sp)
             }
-            Text(text = logoText, fontSize = 20.sp, letterSpacing = 0.5.sp)
             
             Row {
                 IconButton(onClick = { /* TODO */ }) {
