@@ -66,22 +66,6 @@ fun StationSelectorCard(
                 }
             }
             
-            HorizontalDivider(color = BorderGrey)
-            
-            // Travel Time Row
-            Row(
-                modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 10.dp),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(Icons.Outlined.Schedule, contentDescription = null, tint = TextGrey, modifier = Modifier.size(18.dp))
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text("Travel time", style = MaterialTheme.typography.bodyMedium, color = TextDark)
-                }
-                val durStr = if (fromStation != null && toStation != null) "10 min" else "--" // Hardcoded 10 min for demo unless calculated
-                Text(durStr, style = MaterialTheme.typography.bodyMedium, color = KmrlLime, fontWeight = FontWeight.Bold)
-            }
         }
     }
 }
