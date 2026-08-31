@@ -74,8 +74,8 @@ class AdminViewModel(private val dao: TimetableDao) : ViewModel() {
         viewModelScope.launch {
             _uiState.value = _uiState.value.copy(isLoading = true, error = null)
             try {
-                // Load local timetables
-                val timetables = dao.getAllTimetables()
+                // All DAO calls must run on IO dispatcher
+                val timetables = withContext(Dispatchers.IO) { dao.getAllTimetables() }
 
                 // Load remote assignments
                 val assignments = FirebaseManager.fetchDateAssignments()
@@ -83,7 +83,9 @@ class AdminViewModel(private val dao: TimetableDao) : ViewModel() {
                 val config      = FirebaseManager.fetchConfig()
 
                 // Load last sync time from local metadata
-                val lastSync = dao.getSyncMetadata("last_sync_time")?.value ?: "Never"
+                val lastSync = withContext(Dispatchers.IO) {
+                    dao.getSyncMetadata("last_sync_time")?.value ?: "Never"
+                }
 
                 _uiState.value = _uiState.value.copy(
                     isLoading      = false,
@@ -113,13 +115,16 @@ class AdminViewModel(private val dao: TimetableDao) : ViewModel() {
             try {
                 FirebaseManager.setDateAssignment(date, timetableName, adminEmail)
 
-                // Immediately reflect in local Room so the timetable updates for user screens
-                dao.clearAllOverrides()
-                val updatedAssignments = FirebaseManager.fetchDateAssignments()
-                dao.insertOverrides(updatedAssignments.map { (d, t) ->
-                    ScheduleOverrideEntity(overrideDate = d, timetableName = t)
-                })
+                // Immediately reflect in local Room on IO thread
+                withContext(Dispatchers.IO) {
+                    dao.clearAllOverrides()
+                    val updatedAssignments = FirebaseManager.fetchDateAssignments()
+                    dao.insertOverrides(updatedAssignments.map { (d, t) ->
+                        ScheduleOverrideEntity(overrideDate = d, timetableName = t)
+                    })
+                }
 
+                val updatedAssignments = FirebaseManager.fetchDateAssignments()
                 _uiState.value = _uiState.value.copy(
                     isLoading       = false,
                     dateAssignments = updatedAssignments,
@@ -141,10 +146,12 @@ class AdminViewModel(private val dao: TimetableDao) : ViewModel() {
             try {
                 FirebaseManager.removeDateAssignment(date, adminEmail)
                 val updatedAssignments = FirebaseManager.fetchDateAssignments()
-                dao.clearAllOverrides()
-                dao.insertOverrides(updatedAssignments.map { (d, t) ->
-                    ScheduleOverrideEntity(overrideDate = d, timetableName = t)
-                })
+                withContext(Dispatchers.IO) {
+                    dao.clearAllOverrides()
+                    dao.insertOverrides(updatedAssignments.map { (d, t) ->
+                        ScheduleOverrideEntity(overrideDate = d, timetableName = t)
+                    })
+                }
                 _uiState.value = _uiState.value.copy(
                     isLoading       = false,
                     dateAssignments = updatedAssignments,
