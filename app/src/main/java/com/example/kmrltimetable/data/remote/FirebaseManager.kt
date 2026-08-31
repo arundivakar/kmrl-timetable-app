@@ -21,7 +21,10 @@ import kotlin.coroutines.resumeWithException
  */
 object FirebaseManager {
 
-    private val db by lazy { FirebaseDatabase.getInstance() }
+    // Explicitly specify the URL because the RTDB is in Asia-Southeast1 and
+    // google-services.json might not have it if downloaded before DB creation.
+    private const val DB_URL = "https://kmrl-train-finder-default-rtdb.asia-southeast1.firebasedatabase.app"
+    private val db by lazy { FirebaseDatabase.getInstance(DB_URL) }
     private val auth by lazy { FirebaseAuth.getInstance() }
 
     // -----------------------------------------------------------------------
