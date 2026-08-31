@@ -27,6 +27,20 @@ fun getCountdownFormatted(targetTimeStr: String, current: Date): String {
     return if (mins > 0) String.format(Locale.US, "%dm %02ds", mins, secs) else String.format(Locale.US, "%02ds", secs)
 }
 
+fun getCountdownFormattedMins(targetTimeStr: String, current: Date): String {
+    val diff = getCountdownMillis(targetTimeStr, current)
+    if (diff <= 0) return "Due"
+    val mins = diff / 60000
+    val hours = mins / 60
+    val remainingMins = mins % 60
+    
+    return if (hours > 0) {
+        String.format(Locale.US, "%dh %02dm", hours, remainingMins)
+    } else {
+        String.format(Locale.US, "%dm", mins)
+    }
+}
+
 fun getDurationStr(dep: String, arr: String): String {
     val format = SimpleDateFormat("HH:mm:ss", Locale.US)
     try {
