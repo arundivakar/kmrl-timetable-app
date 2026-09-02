@@ -1,11 +1,13 @@
 package com.example.kmrltimetable.ui.admin
 
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -16,6 +18,7 @@ import androidx.compose.material.icons.filled.*
 import androidx.compose.material.icons.outlined.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import com.example.kmrltimetable.data.local.entity.TimetableEntity
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -325,7 +328,7 @@ fun CalendarTab(viewModel: AdminViewModel, uiState: AdminUiState) {
     if (showAssignDialog) {
         AssignTimetableDialog(
             dateLabel       = selectedDateLabel,
-            timetables      = uiState.timetables.map { it.name },
+            timetables      = uiState.timetables,
             currentAssigned = uiState.dateAssignments[selectedDate],
             onDismiss       = { showAssignDialog = false },
             onConfirm       = { timetableName ->
@@ -337,18 +340,39 @@ fun CalendarTab(viewModel: AdminViewModel, uiState: AdminUiState) {
 }
 
 // --------------------------------------------------------------------------
-// Assignment Dialog
+// Assignment Dialog with Search & Filters
 // --------------------------------------------------------------------------
 
 @Composable
 fun AssignTimetableDialog(
     dateLabel: String,
-    timetables: List<String>,
+    timetables: List<TimetableEntity>,
     currentAssigned: String?,
     onDismiss: () -> Unit,
     onConfirm: (String) -> Unit
 ) {
-    var selected by remember { mutableStateOf(currentAssigned ?: timetables.firstOrNull() ?: "") }
+    var selected by remember { mutableStateOf(currentAssigned ?: timetables.firstOrNull()?.name ?: "") }
+    var searchQuery by remember { mutableStateOf("") }
+    var selectedCategory by remember { mutableStateOf("ALL") }
+
+    val categories = listOf("ALL", "WEEKDAY", "SUNDAY", "FESTIVAL", "SPECIAL")
+
+    val filteredTimetables = remember(timetables, searchQuery, selectedCategory) {
+        timetables.filter { tt ->
+            val matchesSearch = searchQuery.isBlank() ||
+                tt.name.contains(searchQuery, ignoreCase = true) ||
+                tt.type.contains(searchQuery, ignoreCase = true)
+            val matchesCat = when (selectedCategory) {
+                "ALL" -> true
+                "WEEKDAY" -> tt.type.equals("WEEKDAY", ignoreCase = true)
+                "SUNDAY" -> tt.type.equals("SUNDAY", ignoreCase = true)
+                "FESTIVAL" -> tt.type.equals("FESTIVAL", ignoreCase = true)
+                "SPECIAL" -> tt.type.equals("SPECIAL", ignoreCase = true)
+                else -> true
+            }
+            matchesSearch && matchesCat
+        }
+    }
 
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -360,15 +384,120 @@ fun AssignTimetableDialog(
             }
         },
         text = {
-            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                timetables.forEach { name ->
-                    Row(
-                        modifier = Modifier.fillMaxWidth().clickable { selected = name }.padding(vertical = 6.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        RadioButton(selected = selected == name, onClick = { selected = name }, colors = RadioButtonDefaults.colors(selectedColor = KmrlTeal))
-                        Spacer(Modifier.width(8.dp))
-                        Text(name, color = MaterialTheme.colorScheme.onSurface, fontSize = 15.sp)
+            Column(modifier = Modifier.fillMaxWidth()) {
+                // Search field
+                OutlinedTextField(
+                    value = searchQuery,
+                    onValueChange = { searchQuery = it },
+                    placeholder = { Text("Search (e.g. 16W, Sunday)...", fontSize = 13.sp) },
+                    leadingIcon = { Icon(Icons.Default.Search, contentDescription = null, tint = KmrlTeal, modifier = Modifier.size(18.dp)) },
+                    trailingIcon = {
+                        if (searchQuery.isNotBlank()) {
+                            IconButton(onClick = { searchQuery = "" }) {
+                                Icon(Icons.Default.Clear, contentDescription = "Clear", tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(16.dp))
+                            }
+                        }
+                    },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedBorderColor = KmrlTeal,
+                        unfocusedBorderColor = MaterialTheme.colorScheme.outlineVariant,
+                        focusedTextColor = MaterialTheme.colorScheme.onSurface,
+                        unfocusedTextColor = MaterialTheme.colorScheme.onSurface
+                    ),
+                    shape = RoundedCornerShape(8.dp)
+                )
+
+                Spacer(Modifier.height(8.dp))
+
+                // Category chips
+                LazyRow(
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    items(categories) { cat ->
+                        val isSel = selectedCategory == cat
+                        Surface(
+                            shape = RoundedCornerShape(16.dp),
+                            color = if (isSel) KmrlTeal else MaterialTheme.colorScheme.surface,
+                            border = if (isSel) null else BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
+                            modifier = Modifier.clickable { selectedCategory = cat }
+                        ) {
+                            Text(
+                                text = cat,
+                                modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp),
+                                fontSize = 11.sp,
+                                fontWeight = if (isSel) FontWeight.Bold else FontWeight.Normal,
+                                color = if (isSel) Color.White else MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    }
+                }
+
+                Spacer(Modifier.height(8.dp))
+
+                Text(
+                    "Showing ${filteredTimetables.size} of ${timetables.size} timetables",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+
+                Spacer(Modifier.height(6.dp))
+
+                // Scrollable List
+                LazyColumn(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .heightIn(max = 280.dp),
+                    verticalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    if (filteredTimetables.isEmpty()) {
+                        item {
+                            Box(modifier = Modifier.fillMaxWidth().padding(24.dp), contentAlignment = Alignment.Center) {
+                                Text("No matching timetables found", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            }
+                        }
+                    } else {
+                        items(filteredTimetables) { tt ->
+                            val isCurrentSelected = selected == tt.name
+                            Card(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .border(
+                                        1.dp,
+                                        if (isCurrentSelected) KmrlTeal else MaterialTheme.colorScheme.outlineVariant,
+                                        RoundedCornerShape(8.dp)
+                                    )
+                                    .clickable { selected = tt.name },
+                                colors = CardDefaults.cardColors(
+                                    containerColor = if (isCurrentSelected) KmrlTeal.copy(alpha = 0.12f) else MaterialTheme.colorScheme.surface
+                                ),
+                                shape = RoundedCornerShape(8.dp)
+                            ) {
+                                Row(
+                                    modifier = Modifier.fillMaxWidth().padding(horizontal = 10.dp, vertical = 8.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    RadioButton(
+                                        selected = isCurrentSelected,
+                                        onClick = { selected = tt.name },
+                                        colors = RadioButtonDefaults.colors(selectedColor = KmrlTeal),
+                                        modifier = Modifier.size(20.dp)
+                                    )
+                                    Spacer(Modifier.width(8.dp))
+                                    Column(modifier = Modifier.weight(1f)) {
+                                        Text(tt.name, fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.onSurface, fontSize = 13.sp)
+                                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                                            TypeBadge(tt.type)
+                                            tt.trainCount?.let { count ->
+                                                Text("$count trains", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 10.sp)
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
                     }
                 }
             }
@@ -389,11 +518,32 @@ fun AssignTimetableDialog(
 }
 
 // --------------------------------------------------------------------------
-// Tab 2: Timetables list
+// Tab 2: Timetables list with Search & Category Filters
 // --------------------------------------------------------------------------
 
 @Composable
 fun TimetablesTab(uiState: AdminUiState) {
+    var searchQuery by remember { mutableStateOf("") }
+    var selectedCategory by remember { mutableStateOf("ALL") }
+    val categories = listOf("ALL", "WEEKDAY", "SUNDAY", "FESTIVAL", "SPECIAL")
+
+    val filtered = remember(uiState.timetables, searchQuery, selectedCategory) {
+        uiState.timetables.filter { tt ->
+            val matchesSearch = searchQuery.isBlank() ||
+                tt.name.contains(searchQuery, ignoreCase = true) ||
+                tt.type.contains(searchQuery, ignoreCase = true)
+            val matchesCat = when (selectedCategory) {
+                "ALL" -> true
+                "WEEKDAY" -> tt.type.equals("WEEKDAY", ignoreCase = true)
+                "SUNDAY" -> tt.type.equals("SUNDAY", ignoreCase = true)
+                "FESTIVAL" -> tt.type.equals("FESTIVAL", ignoreCase = true)
+                "SPECIAL" -> tt.type.equals("SPECIAL", ignoreCase = true)
+                else -> true
+            }
+            matchesSearch && matchesCat
+        }
+    }
+
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
         contentPadding = PaddingValues(16.dp),
@@ -403,28 +553,102 @@ fun TimetablesTab(uiState: AdminUiState) {
             Text("AVAILABLE TIMETABLES", style = MaterialTheme.typography.labelLarge, color = KmrlTeal, fontWeight = FontWeight.Bold, modifier = Modifier.padding(bottom = 4.dp))
         }
 
-        items(uiState.timetables) { timetable ->
-            Card(
-                modifier = Modifier.fillMaxWidth().border(1.dp, MaterialTheme.colorScheme.outlineVariant, RoundedCornerShape(10.dp)),
-                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-                shape = RoundedCornerShape(10.dp)
-            ) {
-                Row(
-                    modifier = Modifier.fillMaxWidth().height(IntrinsicSize.Min),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Box(modifier = Modifier.width(6.dp).fillMaxHeight().background(KmrlTeal))
-                    Column(modifier = Modifier.weight(1f).padding(14.dp)) {
-                        Text(timetable.name, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface)
-                        Text(timetable.type, style = MaterialTheme.typography.bodySmall, color = KmrlTeal)
-                        timetable.notes?.let {
-                            Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        item {
+            // Search field
+            OutlinedTextField(
+                value = searchQuery,
+                onValueChange = { searchQuery = it },
+                placeholder = { Text("Search by name or type...", fontSize = 14.sp) },
+                leadingIcon = { Icon(Icons.Default.Search, contentDescription = null, tint = KmrlTeal) },
+                trailingIcon = {
+                    if (searchQuery.isNotBlank()) {
+                        IconButton(onClick = { searchQuery = "" }) {
+                            Icon(Icons.Default.Clear, contentDescription = "Clear", tint = MaterialTheme.colorScheme.onSurfaceVariant)
                         }
                     }
-                    timetable.trainCount?.let { count ->
-                        Column(horizontalAlignment = Alignment.End, modifier = Modifier.padding(end = 14.dp)) {
-                            Text("$count", fontWeight = FontWeight.Bold, color = KmrlTeal, fontSize = 18.sp)
-                            Text("trains", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                },
+                singleLine = true,
+                modifier = Modifier.fillMaxWidth(),
+                colors = OutlinedTextFieldDefaults.colors(
+                    focusedBorderColor = KmrlTeal,
+                    unfocusedBorderColor = MaterialTheme.colorScheme.outlineVariant,
+                    focusedTextColor = MaterialTheme.colorScheme.onSurface,
+                    unfocusedTextColor = MaterialTheme.colorScheme.onSurface
+                ),
+                shape = RoundedCornerShape(10.dp)
+            )
+        }
+
+        item {
+            // Category chips
+            LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                items(categories) { cat ->
+                    val isSel = selectedCategory == cat
+                    Surface(
+                        shape = RoundedCornerShape(20.dp),
+                        color = if (isSel) KmrlTeal else MaterialTheme.colorScheme.surface,
+                        border = if (isSel) null else BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
+                        modifier = Modifier.clickable { selectedCategory = cat }
+                    ) {
+                        Text(
+                            text = cat,
+                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
+                            fontSize = 12.sp,
+                            fontWeight = if (isSel) FontWeight.Bold else FontWeight.Normal,
+                            color = if (isSel) Color.White else MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
+            }
+        }
+
+        item {
+            Text(
+                "Showing ${filtered.size} of ${uiState.timetables.size} timetables",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
+
+        if (filtered.isEmpty()) {
+            item {
+                Box(modifier = Modifier.fillMaxWidth().padding(32.dp), contentAlignment = Alignment.Center) {
+                    Text("No timetables found matching filters", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+            }
+        } else {
+            items(filtered) { timetable ->
+                Card(
+                    modifier = Modifier.fillMaxWidth().border(1.dp, MaterialTheme.colorScheme.outlineVariant, RoundedCornerShape(10.dp)),
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                    shape = RoundedCornerShape(10.dp)
+                ) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth().height(IntrinsicSize.Min),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        val stripeColor = when (timetable.type.uppercase()) {
+                            "WEEKDAY" -> KmrlTeal
+                            "SUNDAY" -> Color(0xFF7B1FA2)
+                            "FESTIVAL" -> Color(0xFFE65100)
+                            "SPECIAL" -> Color(0xFF00838F)
+                            else -> KmrlTeal
+                        }
+                        Box(modifier = Modifier.width(6.dp).fillMaxHeight().background(stripeColor))
+                        Column(modifier = Modifier.weight(1f).padding(14.dp)) {
+                            Text(timetable.name, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface)
+                            Spacer(Modifier.height(4.dp))
+                            TypeBadge(timetable.type)
+                            timetable.notes?.let {
+                                Spacer(Modifier.height(2.dp))
+                                Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            }
+                        }
+                        timetable.trainCount?.let { count ->
+                            Column(horizontalAlignment = Alignment.End, modifier = Modifier.padding(end = 14.dp)) {
+                                Text("$count", fontWeight = FontWeight.Bold, color = KmrlTeal, fontSize = 18.sp)
+                                Text("trains", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            }
                         }
                     }
                 }
@@ -449,6 +673,29 @@ fun TimetablesTab(uiState: AdminUiState) {
                 }
             }
         }
+    }
+}
+
+@Composable
+fun TypeBadge(type: String) {
+    val (bgColor, textColor) = when (type.uppercase()) {
+        "WEEKDAY" -> Pair(KmrlTeal.copy(alpha = 0.15f), KmrlTeal)
+        "SUNDAY" -> Pair(Color(0xFF7B1FA2).copy(alpha = 0.15f), Color(0xFFBA68C8))
+        "FESTIVAL" -> Pair(Color(0xFFE65100).copy(alpha = 0.15f), Color(0xFFFFB74D))
+        "SPECIAL" -> Pair(Color(0xFF00838F).copy(alpha = 0.15f), Color(0xFF4DD0E1))
+        else -> Pair(KmrlTeal.copy(alpha = 0.15f), KmrlTeal)
+    }
+    Surface(
+        shape = RoundedCornerShape(4.dp),
+        color = bgColor
+    ) {
+        Text(
+            text = type.uppercase(),
+            color = textColor,
+            fontSize = 10.sp,
+            fontWeight = FontWeight.Bold,
+            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+        )
     }
 }
 
