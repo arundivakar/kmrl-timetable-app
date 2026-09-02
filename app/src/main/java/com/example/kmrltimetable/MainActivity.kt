@@ -28,6 +28,7 @@ import com.example.kmrltimetable.ui.TimetableViewModel
 import com.example.kmrltimetable.ui.TimetableViewModelFactory
 import com.example.kmrltimetable.ui.admin.AdminScreen
 import com.example.kmrltimetable.ui.admin.AdminViewModel
+import com.example.kmrltimetable.ui.components.AboutAppDialog
 import com.example.kmrltimetable.ui.screens.FullTimetableScreen
 import com.example.kmrltimetable.ui.screens.StationTimingsScreen
 import com.example.kmrltimetable.ui.screens.TodayScreen
@@ -91,6 +92,7 @@ fun MainScreen(
     var selectedTab by remember { mutableStateOf(NavTab.TODAY) }
     var logoTapCount by remember { mutableIntStateOf(0) }
     var searchResultMode by remember { mutableStateOf(false) }
+    var showAboutDialog by remember { mutableStateOf(false) }
 
     // ViewModels — created lazily with access to the shared repository/DAO
     val app = androidx.compose.ui.platform.LocalContext.current.applicationContext as KMRLApplication
@@ -119,7 +121,9 @@ fun MainScreen(
         TrainSearchResultsScreen(
             viewModel = viewModel,
             isTomorrow = selectedTab == NavTab.TOMORROW,
-            onBack = { searchResultMode = false }
+            onBack = { searchResultMode = false },
+            isDarkMode = isDarkMode,
+            onThemeToggle = onThemeToggle
         )
     } else {
         Scaffold(
@@ -186,18 +190,44 @@ fun MainScreen(
                             stationViewModel.selectStation(station)
                         },
                         isDarkMode = isDarkMode,
-                        onThemeToggle = onThemeToggle
+                        onThemeToggle = onThemeToggle,
+                        onMenuClick = { showAboutDialog = true }
                     )
                     NavTab.TOMORROW -> TomorrowScreen(
                         viewModel = viewModel,
-                        onFindTrainsClick = { searchResultMode = true }
+                        onFindTrainsClick = { searchResultMode = true },
+                        isDarkMode = isDarkMode,
+                        onThemeToggle = onThemeToggle,
+                        onMenuClick = { showAboutDialog = true }
                     )
-                    NavTab.FULL     -> FullTimetableScreen(viewModel)
-                    NavTab.STATION  -> StationTimingsScreen(stationViewModel)
-                    NavTab.ADMIN    -> AdminScreen(adminViewModel)
+                    NavTab.FULL     -> FullTimetableScreen(
+                        viewModel = viewModel,
+                        isDarkMode = isDarkMode,
+                        onThemeToggle = onThemeToggle,
+                        onMenuClick = { showAboutDialog = true }
+                    )
+                    NavTab.STATION  -> StationTimingsScreen(
+                        viewModel = stationViewModel,
+                        isDarkMode = isDarkMode,
+                        onThemeToggle = onThemeToggle,
+                        onMenuClick = { showAboutDialog = true }
+                    )
+                    NavTab.ADMIN    -> AdminScreen(
+                        viewModel = adminViewModel,
+                        isDarkMode = isDarkMode,
+                        onThemeToggle = onThemeToggle
+                    )
                 }
             }
         }
+    }
+
+    if (showAboutDialog) {
+        AboutAppDialog(
+            isDarkMode = isDarkMode,
+            onDismiss = { showAboutDialog = false },
+            onThemeToggle = onThemeToggle
+        )
     }
 }
 

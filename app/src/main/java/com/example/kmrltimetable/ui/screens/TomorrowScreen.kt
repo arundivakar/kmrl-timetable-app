@@ -20,7 +20,10 @@ import java.util.Date
 @Composable
 fun TomorrowScreen(
     viewModel: TimetableViewModel,
-    onFindTrainsClick: () -> Unit
+    onFindTrainsClick: () -> Unit,
+    isDarkMode: Boolean = false,
+    onThemeToggle: () -> Unit = {},
+    onMenuClick: () -> Unit = {}
 ) {
     val uiState by viewModel.uiState.collectAsState()
     val stations by viewModel.stations.collectAsState()
@@ -28,7 +31,13 @@ fun TomorrowScreen(
     val tomorrowDate = Date(System.currentTimeMillis() + 86400000)
 
     Column(modifier = Modifier.fillMaxSize()) {
-        HeaderBlock(tomorrowDate, isTomorrow = true)
+        HeaderBlock(
+            currentTime = tomorrowDate,
+            isTomorrow = true,
+            isDarkMode = isDarkMode,
+            onThemeToggle = onThemeToggle,
+            onMenuClick = onMenuClick
+        )
 
         Spacer(modifier = Modifier.height(12.dp))
         TimetableStatusCard(uiState.tomorrowTimetableName)

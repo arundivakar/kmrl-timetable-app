@@ -35,13 +35,17 @@ import com.example.kmrltimetable.ui.theme.*
 // --------------------------------------------------------------------------
 
 @Composable
-fun AdminScreen(viewModel: AdminViewModel) {
+fun AdminScreen(
+    viewModel: AdminViewModel,
+    isDarkMode: Boolean = false,
+    onThemeToggle: () -> Unit = {}
+) {
     val uiState by viewModel.uiState.collectAsState()
 
     if (!uiState.isSignedIn) {
-        AdminLoginScreen(viewModel, uiState)
+        AdminLoginScreen(viewModel, uiState, isDarkMode, onThemeToggle)
     } else {
-        AdminDashboardScreen(viewModel, uiState)
+        AdminDashboardScreen(viewModel, uiState, isDarkMode, onThemeToggle)
     }
 }
 
@@ -50,103 +54,132 @@ fun AdminScreen(viewModel: AdminViewModel) {
 // --------------------------------------------------------------------------
 
 @Composable
-fun AdminLoginScreen(viewModel: AdminViewModel, uiState: AdminUiState) {
+fun AdminLoginScreen(
+    viewModel: AdminViewModel,
+    uiState: AdminUiState,
+    isDarkMode: Boolean = false,
+    onThemeToggle: () -> Unit = {}
+) {
     var email by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
     var passwordVisible by remember { mutableStateOf(false) }
 
     Box(
-        modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background),
-        contentAlignment = Alignment.Center
+        modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)
     ) {
-        Card(
-            modifier = Modifier.fillMaxWidth().padding(32.dp),
-            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-            elevation = CardDefaults.cardElevation(8.dp),
-            shape = RoundedCornerShape(16.dp)
+        // Top right theme toggle
+        IconButton(
+            onClick = onThemeToggle,
+            modifier = Modifier.align(Alignment.TopEnd).padding(16.dp)
         ) {
-            Column(
-                modifier = Modifier.padding(24.dp),
-                horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.spacedBy(16.dp)
+            if (isDarkMode) {
+                Icon(
+                    Icons.Filled.LightMode,
+                    contentDescription = "Switch to Light Mode",
+                    tint = Color(0xFFFFD54F)
+                )
+            } else {
+                Icon(
+                    Icons.Filled.DarkMode,
+                    contentDescription = "Switch to Dark Mode",
+                    tint = MaterialTheme.colorScheme.onBackground
+                )
+            }
+        }
+
+        Box(
+            modifier = Modifier.fillMaxSize(),
+            contentAlignment = Alignment.Center
+        ) {
+            Card(
+                modifier = Modifier.fillMaxWidth().padding(32.dp),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                elevation = CardDefaults.cardElevation(8.dp),
+                shape = RoundedCornerShape(16.dp)
             ) {
-                // Header
-                Box(
-                    modifier = Modifier.size(64.dp).background(KmrlTeal, CircleShape),
-                    contentAlignment = Alignment.Center
+                Column(
+                    modifier = Modifier.padding(24.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.spacedBy(16.dp)
                 ) {
-                    Icon(Icons.Default.AdminPanelSettings, contentDescription = null, tint = Color.White, modifier = Modifier.size(36.dp))
-                }
-
-                Text("Admin Panel", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onBackground)
-                Text("KMRL Timetable Management", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-
-                HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
-
-                OutlinedTextField(
-                    value = email,
-                    onValueChange = { email = it },
-                    label = { Text("Admin Email") },
-                    leadingIcon = { Icon(Icons.Default.Email, contentDescription = null, tint = KmrlTeal) },
-                    modifier = Modifier.fillMaxWidth(),
-                    singleLine = true,
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email),
-                    colors = OutlinedTextFieldDefaults.colors(
-                        focusedBorderColor = KmrlTeal,
-                        focusedLabelColor = KmrlTeal,
-                        unfocusedBorderColor = MaterialTheme.colorScheme.outlineVariant,
-                        focusedTextColor = MaterialTheme.colorScheme.onSurface,
-                        unfocusedTextColor = MaterialTheme.colorScheme.onSurface,
-                        focusedContainerColor = MaterialTheme.colorScheme.surface,
-                        unfocusedContainerColor = MaterialTheme.colorScheme.surface
-                    )
-                )
-
-                OutlinedTextField(
-                    value = password,
-                    onValueChange = { password = it },
-                    label = { Text("Password") },
-                    leadingIcon = { Icon(Icons.Default.Lock, contentDescription = null, tint = KmrlTeal) },
-                    trailingIcon = {
-                        IconButton(onClick = { passwordVisible = !passwordVisible }) {
-                            Icon(if (passwordVisible) Icons.Default.VisibilityOff else Icons.Default.Visibility, null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
-                        }
-                    },
-                    visualTransformation = if (passwordVisible) VisualTransformation.None else PasswordVisualTransformation(),
-                    modifier = Modifier.fillMaxWidth(),
-                    singleLine = true,
-                    colors = OutlinedTextFieldDefaults.colors(
-                        focusedBorderColor = KmrlTeal,
-                        focusedLabelColor = KmrlTeal,
-                        unfocusedBorderColor = MaterialTheme.colorScheme.outlineVariant,
-                        focusedTextColor = MaterialTheme.colorScheme.onSurface,
-                        unfocusedTextColor = MaterialTheme.colorScheme.onSurface,
-                        focusedContainerColor = MaterialTheme.colorScheme.surface,
-                        unfocusedContainerColor = MaterialTheme.colorScheme.surface
-                    )
-                )
-
-                // Error message
-                AnimatedVisibility(visible = uiState.error != null) {
-                    Card(
-                        colors = CardDefaults.cardColors(containerColor = Color(0xFFFFEBEE)),
-                        shape = RoundedCornerShape(8.dp)
+                    // Header
+                    Box(
+                        modifier = Modifier.size(64.dp).background(KmrlTeal, CircleShape),
+                        contentAlignment = Alignment.Center
                     ) {
-                        Text(uiState.error ?: "", modifier = Modifier.padding(12.dp), color = Color(0xFFC62828), style = MaterialTheme.typography.bodySmall)
+                        Icon(Icons.Default.AdminPanelSettings, contentDescription = null, tint = Color.White, modifier = Modifier.size(36.dp))
                     }
-                }
 
-                Button(
-                    onClick = { viewModel.signIn(email, password) },
-                    modifier = Modifier.fillMaxWidth().height(52.dp),
-                    colors = ButtonDefaults.buttonColors(containerColor = KmrlTeal),
-                    shape = RoundedCornerShape(12.dp),
-                    enabled = !uiState.isLoading && email.isNotBlank() && password.isNotBlank()
-                ) {
-                    if (uiState.isLoading) {
-                        CircularProgressIndicator(color = Color.White, modifier = Modifier.size(24.dp), strokeWidth = 2.dp)
-                    } else {
-                        Text("Sign In", fontWeight = FontWeight.Bold, fontSize = 16.sp)
+                    Text("Admin Panel", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onBackground)
+                    Text("KMRL Timetable Management", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+
+                    HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+
+                    OutlinedTextField(
+                        value = email,
+                        onValueChange = { email = it },
+                        label = { Text("Admin Email") },
+                        leadingIcon = { Icon(Icons.Default.Email, contentDescription = null, tint = KmrlTeal) },
+                        modifier = Modifier.fillMaxWidth(),
+                        singleLine = true,
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email),
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedBorderColor = KmrlTeal,
+                            focusedLabelColor = KmrlTeal,
+                            unfocusedBorderColor = MaterialTheme.colorScheme.outlineVariant,
+                            focusedTextColor = MaterialTheme.colorScheme.onSurface,
+                            unfocusedTextColor = MaterialTheme.colorScheme.onSurface,
+                            focusedContainerColor = MaterialTheme.colorScheme.surface,
+                            unfocusedContainerColor = MaterialTheme.colorScheme.surface
+                        )
+                    )
+
+                    OutlinedTextField(
+                        value = password,
+                        onValueChange = { password = it },
+                        label = { Text("Password") },
+                        leadingIcon = { Icon(Icons.Default.Lock, contentDescription = null, tint = KmrlTeal) },
+                        trailingIcon = {
+                            IconButton(onClick = { passwordVisible = !passwordVisible }) {
+                                Icon(if (passwordVisible) Icons.Default.VisibilityOff else Icons.Default.Visibility, null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                            }
+                        },
+                        visualTransformation = if (passwordVisible) VisualTransformation.None else PasswordVisualTransformation(),
+                        modifier = Modifier.fillMaxWidth(),
+                        singleLine = true,
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedBorderColor = KmrlTeal,
+                            focusedLabelColor = KmrlTeal,
+                            unfocusedBorderColor = MaterialTheme.colorScheme.outlineVariant,
+                            focusedTextColor = MaterialTheme.colorScheme.onSurface,
+                            unfocusedTextColor = MaterialTheme.colorScheme.onSurface,
+                            focusedContainerColor = MaterialTheme.colorScheme.surface,
+                            unfocusedContainerColor = MaterialTheme.colorScheme.surface
+                        )
+                    )
+
+                    // Error message
+                    AnimatedVisibility(visible = uiState.error != null) {
+                        Card(
+                            colors = CardDefaults.cardColors(containerColor = Color(0xFFFFEBEE)),
+                            shape = RoundedCornerShape(8.dp)
+                        ) {
+                            Text(uiState.error ?: "", modifier = Modifier.padding(12.dp), color = Color(0xFFC62828), style = MaterialTheme.typography.bodySmall)
+                        }
+                    }
+
+                    Button(
+                        onClick = { viewModel.signIn(email, password) },
+                        modifier = Modifier.fillMaxWidth().height(52.dp),
+                        colors = ButtonDefaults.buttonColors(containerColor = KmrlTeal),
+                        shape = RoundedCornerShape(12.dp),
+                        enabled = !uiState.isLoading && email.isNotBlank() && password.isNotBlank()
+                    ) {
+                        if (uiState.isLoading) {
+                            CircularProgressIndicator(color = Color.White, modifier = Modifier.size(24.dp), strokeWidth = 2.dp)
+                        } else {
+                            Text("Sign In", fontWeight = FontWeight.Bold, fontSize = 16.sp)
+                        }
                     }
                 }
             }
@@ -160,7 +193,12 @@ fun AdminLoginScreen(viewModel: AdminViewModel, uiState: AdminUiState) {
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun AdminDashboardScreen(viewModel: AdminViewModel, uiState: AdminUiState) {
+fun AdminDashboardScreen(
+    viewModel: AdminViewModel,
+    uiState: AdminUiState,
+    isDarkMode: Boolean = false,
+    onThemeToggle: () -> Unit = {}
+) {
     var selectedTab by remember { mutableIntStateOf(0) }
     val tabs = listOf("Calendar", "Timetables", "Sync")
 
@@ -170,6 +208,21 @@ fun AdminDashboardScreen(viewModel: AdminViewModel, uiState: AdminUiState) {
                 title = { Text("Admin Panel", fontWeight = FontWeight.Bold, color = Color.White) },
                 colors = TopAppBarDefaults.topAppBarColors(containerColor = KmrlTeal),
                 actions = {
+                    IconButton(onClick = onThemeToggle) {
+                        if (isDarkMode) {
+                            Icon(
+                                Icons.Filled.LightMode,
+                                contentDescription = "Switch to Light Mode",
+                                tint = Color(0xFFFFD54F)
+                            )
+                        } else {
+                            Icon(
+                                Icons.Filled.DarkMode,
+                                contentDescription = "Switch to Dark Mode",
+                                tint = Color.White
+                            )
+                        }
+                    }
                     IconButton(onClick = { viewModel.loadAdminData() }) {
                         Icon(Icons.Default.Refresh, contentDescription = "Refresh", tint = Color.White)
                     }

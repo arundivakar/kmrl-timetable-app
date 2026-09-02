@@ -22,7 +22,8 @@ fun TodayScreen(
     onFindTrainsClick: () -> Unit,
     onStationTimingSearch: (com.example.kmrltimetable.data.local.entity.StationEntity) -> Unit,
     isDarkMode: Boolean = false,
-    onThemeToggle: () -> Unit = {}
+    onThemeToggle: () -> Unit = {},
+    onMenuClick: () -> Unit = {}
 ) {
     val uiState by viewModel.uiState.collectAsState()
     val stations by viewModel.stations.collectAsState()
@@ -33,7 +34,8 @@ fun TodayScreen(
             currentTime = currentTime,
             isTomorrow = false,
             isDarkMode = isDarkMode,
-            onThemeToggle = onThemeToggle
+            onThemeToggle = onThemeToggle,
+            onMenuClick = onMenuClick
         )
 
         Spacer(modifier = Modifier.height(12.dp))

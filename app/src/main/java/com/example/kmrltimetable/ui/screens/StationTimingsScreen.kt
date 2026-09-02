@@ -9,7 +9,10 @@ import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.DarkMode
 import androidx.compose.material.icons.filled.KeyboardArrowDown
+import androidx.compose.material.icons.filled.LightMode
+import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material.icons.outlined.DirectionsSubway
 import androidx.compose.material.icons.outlined.LocationOn
 import androidx.compose.material.icons.outlined.Schedule
@@ -42,7 +45,12 @@ import java.util.Locale
 // ─────────────────────────────────────────────────────────────────────────────
 
 @Composable
-fun StationTimingsScreen(viewModel: StationTimingsViewModel) {
+fun StationTimingsScreen(
+    viewModel: StationTimingsViewModel,
+    isDarkMode: Boolean = false,
+    onThemeToggle: () -> Unit = {},
+    onMenuClick: () -> Unit = {}
+) {
     val uiState     by viewModel.uiState.collectAsState()
     val stations    by viewModel.stations.collectAsState()
     val currentTime by viewModel.currentTime.collectAsState()
@@ -56,24 +64,43 @@ fun StationTimingsScreen(viewModel: StationTimingsViewModel) {
             modifier = Modifier
                 .fillMaxWidth()
                 .background(Brush.verticalGradient(listOf(KmrlTeal, KmrlTeal.copy(alpha = 0.88f))))
-                .padding(horizontal = 16.dp, vertical = 20.dp)
+                .padding(horizontal = 16.dp, vertical = 16.dp)
         ) {
             Column {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(
-                        Icons.Outlined.DirectionsSubway,
-                        contentDescription = null,
-                        tint = Color.White,
-                        modifier = Modifier.size(22.dp)
-                    )
-                    Spacer(Modifier.width(8.dp))
-                    Text(
-                        "STATION TIMINGS",
-                        color = Color.White,
-                        fontWeight = FontWeight.Bold,
-                        letterSpacing = 1.5.sp,
-                        fontSize = 14.sp
-                    )
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        IconButton(onClick = onMenuClick, modifier = Modifier.size(32.dp)) {
+                            Icon(Icons.Default.Menu, contentDescription = "App Information", tint = Color.White)
+                        }
+                        Spacer(Modifier.width(8.dp))
+                        Text(
+                            "STATION TIMINGS",
+                            color = Color.White,
+                            fontWeight = FontWeight.Bold,
+                            letterSpacing = 1.2.sp,
+                            fontSize = 15.sp
+                        )
+                    }
+
+                    IconButton(onClick = onThemeToggle, modifier = Modifier.size(32.dp)) {
+                        if (isDarkMode) {
+                            Icon(
+                                Icons.Filled.LightMode,
+                                contentDescription = "Switch to Light Mode",
+                                tint = Color(0xFFFFD54F)
+                            )
+                        } else {
+                            Icon(
+                                Icons.Filled.DarkMode,
+                                contentDescription = "Switch to Dark Mode",
+                                tint = Color.White
+                            )
+                        }
+                    }
                 }
 
                 Spacer(Modifier.height(14.dp))

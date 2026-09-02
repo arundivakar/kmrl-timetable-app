@@ -9,6 +9,8 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
+import androidx.compose.material.icons.filled.DarkMode
+import androidx.compose.material.icons.filled.LightMode
 import androidx.compose.material.icons.filled.SwapHoriz
 import androidx.compose.material.icons.outlined.CalendarToday
 import androidx.compose.material.icons.outlined.Schedule
@@ -35,7 +37,9 @@ import java.util.Locale
 fun TrainSearchResultsScreen(
     viewModel: TimetableViewModel,
     isTomorrow: Boolean,
-    onBack: () -> Unit
+    onBack: () -> Unit,
+    isDarkMode: Boolean = false,
+    onThemeToggle: () -> Unit = {}
 ) {
     val uiState by viewModel.uiState.collectAsState()
     val currentTime by viewModel.currentTime.collectAsState()
@@ -53,6 +57,23 @@ fun TrainSearchResultsScreen(
             navigationIcon = {
                 IconButton(onClick = onBack) {
                     Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back", tint = Color.White)
+                }
+            },
+            actions = {
+                IconButton(onClick = onThemeToggle) {
+                    if (isDarkMode) {
+                        Icon(
+                            Icons.Filled.LightMode,
+                            contentDescription = "Switch to Light Mode",
+                            tint = Color(0xFFFFD54F)
+                        )
+                    } else {
+                        Icon(
+                            Icons.Filled.DarkMode,
+                            contentDescription = "Switch to Dark Mode",
+                            tint = Color.White
+                        )
+                    }
                 }
             },
             colors = TopAppBarDefaults.topAppBarColors(containerColor = KmrlTeal)

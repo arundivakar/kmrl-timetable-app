@@ -9,8 +9,9 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
-import androidx.compose.material.icons.filled.MoreVert
-import androidx.compose.material.icons.filled.Share
+import androidx.compose.material.icons.filled.DarkMode
+import androidx.compose.material.icons.filled.LightMode
+import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material.icons.filled.SwapHoriz
 import androidx.compose.material.icons.outlined.CalendarToday
 import androidx.compose.material.icons.outlined.Info
@@ -35,21 +36,39 @@ import java.util.Locale
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun FullTimetableScreen(viewModel: TimetableViewModel) {
+fun FullTimetableScreen(
+    viewModel: TimetableViewModel,
+    isDarkMode: Boolean = false,
+    onThemeToggle: () -> Unit = {},
+    onMenuClick: () -> Unit = {}
+) {
     val uiState by viewModel.uiState.collectAsState()
     
     Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
-        // App Bar for Search Results
+        // App Bar
         TopAppBar(
-            title = { Text("Train Search Results", color = Color.White) },
+            title = { Text("Full Timetable", color = Color.White, fontSize = 18.sp) },
             navigationIcon = {
-                IconButton(onClick = { /* TODO */ }) {
-                    Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back", tint = Color.White)
+                IconButton(onClick = onMenuClick) {
+                    Icon(Icons.Default.Menu, contentDescription = "App Information", tint = Color.White)
                 }
             },
             actions = {
-                IconButton(onClick = { /* TODO */ }) { Icon(Icons.Default.Share, contentDescription = "Share", tint = Color.White) }
-                IconButton(onClick = { /* TODO */ }) { Icon(Icons.Default.MoreVert, contentDescription = "More", tint = Color.White) }
+                IconButton(onClick = onThemeToggle) {
+                    if (isDarkMode) {
+                        Icon(
+                            Icons.Filled.LightMode,
+                            contentDescription = "Switch to Light Mode",
+                            tint = Color(0xFFFFD54F)
+                        )
+                    } else {
+                        Icon(
+                            Icons.Filled.DarkMode,
+                            contentDescription = "Switch to Dark Mode",
+                            tint = Color.White
+                        )
+                    }
+                }
             },
             colors = TopAppBarDefaults.topAppBarColors(containerColor = KmrlTeal)
         )
