@@ -168,7 +168,7 @@ fun AboutAppDialog(
                         shape = RoundedCornerShape(4.dp)
                     ) {
                         Text(
-                            text = "v5.0.0 (Release)",
+                            text = "v5.0.1 (Release)",
                             color = KmrlTeal,
                             fontSize = 10.sp,
                             fontWeight = FontWeight.Bold,
