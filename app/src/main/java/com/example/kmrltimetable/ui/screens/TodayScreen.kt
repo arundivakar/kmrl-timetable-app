@@ -11,18 +11,30 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.example.kmrltimetable.ui.TimetableViewModel
 import com.example.kmrltimetable.ui.components.*
 import com.example.kmrltimetable.ui.theme.KmrlTeal
 
 @Composable
-fun TodayScreen(viewModel: TimetableViewModel) {
+fun TodayScreen(
+    viewModel: TimetableViewModel,
+    onFindTrainsClick: () -> Unit,
+    onStationTimingSearch: (com.example.kmrltimetable.data.local.entity.StationEntity) -> Unit,
+    isDarkMode: Boolean = false,
+    onThemeToggle: () -> Unit = {}
+) {
     val uiState by viewModel.uiState.collectAsState()
     val stations by viewModel.stations.collectAsState()
     val currentTime by viewModel.currentTime.collectAsState()
 
     Column(modifier = Modifier.fillMaxSize()) {
-        HeaderBlock(currentTime, isTomorrow = false)
+        HeaderBlock(
+            currentTime = currentTime,
+            isTomorrow = false,
+            isDarkMode = isDarkMode,
+            onThemeToggle = onThemeToggle
+        )
 
         Spacer(modifier = Modifier.height(12.dp))
         TimetableStatusCard(uiState.activeTimetableName)
@@ -40,55 +52,38 @@ fun TodayScreen(viewModel: TimetableViewModel) {
 
         Spacer(modifier = Modifier.height(16.dp))
 
+        // --- FIND TRAINS BUTTON ---
+        if (uiState.fromStation != null && uiState.toStation != null) {
+            Button(
+                onClick = onFindTrainsClick,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp)
+                    .height(48.dp),
+                shape = androidx.compose.foundation.shape.RoundedCornerShape(12.dp),
+                colors = ButtonDefaults.buttonColors(containerColor = KmrlTeal)
+            ) {
+                Text(
+                    "FIND TRAINS",
+                    color = androidx.compose.ui.graphics.Color.White,
+                    fontWeight = FontWeight.Bold,
+                    letterSpacing = 1.sp
+                )
+            }
+            Spacer(modifier = Modifier.height(24.dp))
+        } else {
+            Spacer(modifier = Modifier.height(8.dp))
+        }
+
+        // --- COMPACT STATION TIMING ---
+        StationTimingCompactCard(
+            stations = stations,
+            onSearch = onStationTimingSearch
+        )
+
         if (uiState.isLoading) {
             Box(modifier = Modifier.fillMaxWidth().weight(1f), contentAlignment = Alignment.Center) {
                 CircularProgressIndicator(color = KmrlTeal)
-            }
-        } else if (uiState.fromStation != null && uiState.toStation != null) {
-            
-            val validTrains = uiState.allTrainsToday.filter { train ->
-                getCountdownMillis(train.departureTime, currentTime) > 0
-            }
-
-            if (validTrains.isEmpty()) {
-                EmptyState("No more trains today", "Please check tomorrow's schedule.")
-            } else {
-                Row(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                    Text(
-                        text = "NEXT TRAIN",
-                        style = MaterialTheme.typography.labelLarge,
-                        color = KmrlTeal,
-                        fontWeight = FontWeight.Bold
-                    )
-                    Text(
-                        text = "Train ${validTrains.first().trainNo}",
-                        style = MaterialTheme.typography.labelMedium,
-                        color = KmrlTeal
-                    )
-                }
-                
-                Spacer(modifier = Modifier.height(8.dp))
-                NextTrainCard(validTrains.first(), currentTime, isTomorrow = false)
-                Spacer(modifier = Modifier.height(16.dp))
-                
-                if (validTrains.size > 1) {
-                    Text(
-                        text = "FOLLOWING TRAINS",
-                        style = MaterialTheme.typography.labelLarge,
-                        color = KmrlTeal,
-                        fontWeight = FontWeight.Bold,
-                        modifier = Modifier.padding(start = 16.dp, end = 16.dp, bottom = 8.dp)
-                    )
-                    LazyColumn(
-                        modifier = Modifier.weight(1f),
-                        contentPadding = PaddingValues(horizontal = 16.dp, vertical = 4.dp),
-                        verticalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        itemsIndexed(validTrains.drop(1)) { index, train ->
-                            FollowingTrainRow(train, currentTime, isTomorrow = false, index = index)
-                        }
-                    }
-                }
             }
         }
     }

@@ -27,11 +27,15 @@ import com.example.kmrltimetable.data.local.entity.StationTrainResult
 import com.example.kmrltimetable.ui.components.StationSearchDialog
 import com.example.kmrltimetable.ui.components.getCountdownMillis
 import com.example.kmrltimetable.ui.components.getCountdownFormattedMins
+import com.example.kmrltimetable.ui.components.isRevenueService
 import com.example.kmrltimetable.ui.stations.DirectionFilter
 import com.example.kmrltimetable.ui.stations.StationTimingsViewModel
 import com.example.kmrltimetable.ui.stations.TrainFilter
 import com.example.kmrltimetable.ui.theme.*
+import java.text.SimpleDateFormat
+import java.util.Calendar
 import java.util.Date
+import java.util.Locale
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Main Screen
@@ -45,7 +49,7 @@ fun StationTimingsScreen(viewModel: StationTimingsViewModel) {
 
     var showStationPicker by remember { mutableStateOf(false) }
 
-    Column(modifier = Modifier.fillMaxSize().background(SurfaceLight)) {
+    Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
 
         // ── Gradient Header ──────────────────────────────────────────────────
         Box(
@@ -77,9 +81,9 @@ fun StationTimingsScreen(viewModel: StationTimingsViewModel) {
                 // Station Picker
                 Surface(
                     shape = RoundedCornerShape(12.dp),
-                    color = Color.White,
+                    color = MaterialTheme.colorScheme.surface,
                     shadowElevation = 2.dp,
-                    modifier = Modifier.fillMaxWidth().clickable { showStationPicker = true }
+                    modifier = Modifier.fillMaxWidth().clickable { showStationPicker = true }.border(1.dp, MaterialTheme.colorScheme.outlineVariant, RoundedCornerShape(12.dp))
                 ) {
                     Row(
                         modifier = Modifier.padding(horizontal = 16.dp, vertical = 14.dp),
@@ -90,11 +94,11 @@ fun StationTimingsScreen(viewModel: StationTimingsViewModel) {
                         Text(
                             text = uiState.selectedStation?.name ?: "Select Station",
                             fontWeight = if (uiState.selectedStation != null) FontWeight.Bold else FontWeight.Normal,
-                            color = if (uiState.selectedStation != null) TextDark else TextGrey,
+                            color = if (uiState.selectedStation != null) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurfaceVariant,
                             modifier = Modifier.weight(1f),
                             fontSize = 16.sp
                         )
-                        Icon(Icons.Default.KeyboardArrowDown, contentDescription = null, tint = TextGrey)
+                        Icon(Icons.Default.KeyboardArrowDown, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
                 }
 
@@ -109,7 +113,7 @@ fun StationTimingsScreen(viewModel: StationTimingsViewModel) {
         }
 
         // ── Filter bar ───────────────────────────────────────────────────────
-        Surface(color = Color.White, shadowElevation = 2.dp, modifier = Modifier.fillMaxWidth()) {
+        Surface(color = MaterialTheme.colorScheme.surface, shadowElevation = 2.dp, modifier = Modifier.fillMaxWidth()) {
             Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 10.dp)) {
 
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -125,7 +129,7 @@ fun StationTimingsScreen(viewModel: StationTimingsViewModel) {
                     )
                 }
 
-                Spacer(Modifier.height(8.dp))
+                Spacer(Modifier.height(12.dp))
 
                 DirectionSegmentedControl(
                     selected = uiState.dirFilter,
@@ -137,7 +141,7 @@ fun StationTimingsScreen(viewModel: StationTimingsViewModel) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Icon(Icons.Outlined.Schedule, contentDescription = null, tint = KmrlLime, modifier = Modifier.size(14.dp))
                         Spacer(Modifier.width(4.dp))
-                        Text(uiState.timetableName, fontSize = 11.sp, color = TextGrey)
+                        Text(uiState.timetableName, fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
                 }
             }
@@ -151,8 +155,11 @@ fun StationTimingsScreen(viewModel: StationTimingsViewModel) {
                 val aluvaList = filterByAvailability(uiState.toAluvaTrains, uiState.trainFilter, currentTime)
                 val tphtList  = filterByAvailability(uiState.toTphtTrains,  uiState.trainFilter, currentTime)
 
-                val showAluva = uiState.dirFilter != DirectionFilter.TO_TPHT
-                val showTpht  = uiState.dirFilter != DirectionFilter.TO_ALUVA
+                val isAluva = uiState.selectedStation?.code == "ALVA"
+                val isTpht  = uiState.selectedStation?.code == "TPHT"
+
+                val showAluva = !isAluva && uiState.dirFilter == DirectionFilter.TO_ALUVA
+                val showTpht  = !isTpht  && uiState.dirFilter == DirectionFilter.TO_TPHT
 
                 val aluvaEmpty = !showAluva || aluvaList.isEmpty()
                 val tphtEmpty  = !showTpht  || tphtList.isEmpty()
@@ -284,12 +291,14 @@ private fun StyledFilterChip(label: String, selected: Boolean, onClick: () -> Un
         label = { Text(label, fontSize = 12.sp) },
         colors = FilterChipDefaults.filterChipColors(
             selectedContainerColor = KmrlTeal,
-            selectedLabelColor = Color.White
+            selectedLabelColor = Color.White,
+            containerColor = MaterialTheme.colorScheme.surface,
+            labelColor = MaterialTheme.colorScheme.onSurface
         ),
         border = FilterChipDefaults.filterChipBorder(
             enabled = true,
             selected = selected,
-            borderColor = BorderGrey,
+            borderColor = MaterialTheme.colorScheme.outlineVariant,
             selectedBorderColor = KmrlTeal
         )
     )
@@ -326,7 +335,7 @@ private fun FollowingLabel() {
         modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 12.dp, bottom = 4.dp),
         fontSize = 11.sp,
         fontWeight = FontWeight.Bold,
-        color = TextGrey,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
         letterSpacing = 0.8.sp
     )
 }
@@ -340,7 +349,7 @@ private fun NextTrainStationCard(
     isTomorrow: Boolean
 ) {
     val millis   = if (isTomorrow) 1L else getCountdownMillis(train.departureTime, currentTime)
-    val isDue    = !isTomorrow && millis <= 0
+    val isDeparted = !isTomorrow && millis <= 0
     val countdown = if (isTomorrow) "Tomorrow" else getCountdownFormattedMins(train.departureTime, currentTime)
 
     Card(
@@ -359,6 +368,10 @@ private fun NextTrainStationCard(
 
             Spacer(Modifier.width(14.dp))
 
+            val cal = Calendar.getInstance().apply { time = currentTime }
+            val isSunday = cal.get(Calendar.DAY_OF_WEEK) == Calendar.SUNDAY
+            val isRev = isRevenueService(train.terminalDepartureTime, train.departureTime, isSunday)
+
             Column(modifier = Modifier.weight(1f)) {
                 Surface(shape = RoundedCornerShape(6.dp), color = Color.White.copy(alpha = 0.2f)) {
                     Text(
@@ -374,11 +387,16 @@ private fun NextTrainStationCard(
                 Text("Train ${train.trainNo}", color = Color.White.copy(alpha = 0.85f), fontSize = 11.sp, fontWeight = FontWeight.SemiBold)
                 Text(train.departureTime, color = Color.White, fontSize = 24.sp, fontWeight = FontWeight.Bold)
                 Text(dirLabel, color = Color.White.copy(alpha = 0.75f), fontSize = 11.sp)
+                
+                if (!isRev) {
+                    Spacer(Modifier.height(4.dp))
+                    Text("NON-REVENUE", color = Color.White.copy(alpha = 0.8f), fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                }
             }
 
-            if (isDue) {
-                Surface(shape = RoundedCornerShape(8.dp), color = KmrlLime) {
-                    Text("DUE", modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp), color = Color.White, fontWeight = FontWeight.Bold, fontSize = 13.sp)
+            if (isDeparted) {
+                Surface(shape = RoundedCornerShape(8.dp), color = Color.White.copy(alpha = 0.2f)) {
+                    Text("DEPARTED", modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp), color = Color.White, fontWeight = FontWeight.Bold, fontSize = 11.sp)
                 }
             } else {
                 Column(horizontalAlignment = Alignment.End) {
@@ -400,38 +418,44 @@ private fun StationTrainRow(
     accent: Color
 ) {
     val millis    = if (isTomorrow) 1L else getCountdownMillis(train.departureTime, currentTime)
-    val isDue     = !isTomorrow && millis <= 0
+    val isDeparted = !isTomorrow && millis <= 0
     val countdown = if (isTomorrow) "Tomorrow" else getCountdownFormattedMins(train.departureTime, currentTime)
 
+    val cal = Calendar.getInstance().apply { time = currentTime }
+    val isSunday = cal.get(Calendar.DAY_OF_WEEK) == Calendar.SUNDAY
+    val isRev = isRevenueService(train.terminalDepartureTime, train.departureTime, isSunday)
+
     Card(
-        colors = CardDefaults.cardColors(containerColor = Color.White),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
         shape = RoundedCornerShape(8.dp),
-        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp).border(1.dp, BorderGrey, RoundedCornerShape(8.dp)),
+        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp).border(1.dp, MaterialTheme.colorScheme.outlineVariant, RoundedCornerShape(8.dp)),
         elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
     ) {
         Row(modifier = Modifier.fillMaxWidth().height(IntrinsicSize.Min)) {
-            Box(modifier = Modifier.width(5.dp).fillMaxHeight().background(accent))
+            Box(modifier = Modifier.width(5.dp).fillMaxHeight().background(if (isDeparted) MaterialTheme.colorScheme.outlineVariant else accent))
 
             Row(
                 modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 10.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Icon(Icons.Outlined.DirectionsSubway, contentDescription = null, tint = accent, modifier = Modifier.size(22.dp))
+                Icon(Icons.Outlined.DirectionsSubway, contentDescription = null, tint = if (isDeparted) MaterialTheme.colorScheme.onSurfaceVariant else accent, modifier = Modifier.size(22.dp))
                 Spacer(Modifier.width(12.dp))
 
                 Column(modifier = Modifier.weight(1f)) {
-                    Text("Train ${train.trainNo}", fontSize = 11.sp, color = KmrlTeal, fontWeight = FontWeight.Bold)
-                    Text(train.departureTime, fontSize = 18.sp, fontWeight = FontWeight.Bold, color = TextDark)
-                    Text(dirLabel, fontSize = 11.sp, color = TextGrey)
+                    Text("Train ${train.trainNo}", fontSize = 11.sp, color = if (isDeparted) MaterialTheme.colorScheme.onSurfaceVariant else KmrlTeal, fontWeight = FontWeight.Bold)
+                    Text(train.departureTime, fontSize = 18.sp, fontWeight = FontWeight.Bold, color = if (isDeparted) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.onSurface)
+                    Text(dirLabel, fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    if (!isRev) {
+                        Spacer(Modifier.height(2.dp))
+                        Text("NON-REVENUE", color = if (isDeparted) MaterialTheme.colorScheme.onSurfaceVariant else KmrlTeal, fontSize = 9.sp, fontWeight = FontWeight.Bold)
+                    }
                 }
 
-                if (isDue) {
-                    Surface(shape = RoundedCornerShape(6.dp), color = KmrlLime.copy(alpha = 0.15f)) {
-                        Text("DUE", modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp), color = KmrlLime, fontWeight = FontWeight.Bold, fontSize = 12.sp)
-                    }
+                if (isDeparted) {
+                    Text("DEPARTED", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant, fontWeight = FontWeight.Bold)
                 } else if (!isTomorrow) {
                     Column(horizontalAlignment = Alignment.End) {
-                        Text("IN", fontSize = 9.sp, color = TextGrey)
+                        Text("IN", fontSize = 9.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
                         Text(countdown, fontWeight = FontWeight.Bold, color = accent, fontSize = 14.sp)
                     }
                 }
@@ -446,24 +470,27 @@ private fun StationTrainRow(
 private fun DirectionSegmentedControl(selected: DirectionFilter, onSelect: (DirectionFilter) -> Unit) {
     SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
         SegmentedButton(
-            selected = selected == DirectionFilter.BOTH,
-            onClick = { onSelect(DirectionFilter.BOTH) },
-            shape = SegmentedButtonDefaults.itemShape(0, 3),
-            colors = SegmentedButtonDefaults.colors(activeContainerColor = KmrlTeal, activeContentColor = Color.White)
-        ) { Text("BOTH", fontSize = 11.sp) }
-
-        SegmentedButton(
             selected = selected == DirectionFilter.TO_ALUVA,
             onClick = { onSelect(DirectionFilter.TO_ALUVA) },
-            shape = SegmentedButtonDefaults.itemShape(1, 3),
-            colors = SegmentedButtonDefaults.colors(activeContainerColor = KmrlTeal, activeContentColor = Color.White)
+            shape = SegmentedButtonDefaults.itemShape(0, 2),
+            colors = SegmentedButtonDefaults.colors(
+                activeContainerColor = KmrlTeal,
+                activeContentColor = Color.White,
+                inactiveContainerColor = MaterialTheme.colorScheme.surface,
+                inactiveContentColor = MaterialTheme.colorScheme.onSurface
+            )
         ) { Text("→ ALUVA", fontSize = 11.sp) }
 
         SegmentedButton(
             selected = selected == DirectionFilter.TO_TPHT,
             onClick = { onSelect(DirectionFilter.TO_TPHT) },
-            shape = SegmentedButtonDefaults.itemShape(2, 3),
-            colors = SegmentedButtonDefaults.colors(activeContainerColor = KmrlLime, activeContentColor = Color.White)
+            shape = SegmentedButtonDefaults.itemShape(1, 2),
+            colors = SegmentedButtonDefaults.colors(
+                activeContainerColor = KmrlLime,
+                activeContentColor = Color.White,
+                inactiveContainerColor = MaterialTheme.colorScheme.surface,
+                inactiveContentColor = MaterialTheme.colorScheme.onSurface
+            )
         ) { Text("→ TPHT", fontSize = 11.sp) }
     }
 }
@@ -476,11 +503,11 @@ private fun DirectionSegmentedControl(selected: DirectionFilter, onSelect: (Dire
 private fun NoStationSelected() {
     Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
-            Icon(Icons.Outlined.DirectionsSubway, contentDescription = null, tint = BorderGrey, modifier = Modifier.size(64.dp))
+            Icon(Icons.Outlined.DirectionsSubway, contentDescription = null, tint = MaterialTheme.colorScheme.outlineVariant, modifier = Modifier.size(64.dp))
             Spacer(Modifier.height(16.dp))
-            Text("Select a station", style = MaterialTheme.typography.titleMedium, color = TextGrey)
+            Text("Select a station", style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
             Spacer(Modifier.height(8.dp))
-            Text("Tap the selector above to choose\na metro station", color = TextGrey, fontSize = 13.sp, textAlign = TextAlign.Center)
+            Text("Tap the selector above to choose\na metro station", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 13.sp, textAlign = TextAlign.Center)
         }
     }
 }
@@ -496,10 +523,10 @@ private fun LoadingState() {
 private fun NoTrainsFound() {
     Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
-            Icon(Icons.Outlined.Schedule, contentDescription = null, tint = BorderGrey, modifier = Modifier.size(52.dp))
+            Icon(Icons.Outlined.Schedule, contentDescription = null, tint = MaterialTheme.colorScheme.outlineVariant, modifier = Modifier.size(52.dp))
             Spacer(Modifier.height(12.dp))
-            Text("No trains available", color = TextGrey, fontWeight = FontWeight.Bold)
-            Text("All trains have departed for today", fontSize = 12.sp, color = TextGrey)
+            Text("No trains available", color = MaterialTheme.colorScheme.onSurfaceVariant, fontWeight = FontWeight.Bold)
+            Text("All trains have departed for today", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
     }
 }
@@ -508,10 +535,10 @@ private fun NoTrainsFound() {
 private fun NoTrainsInDirection(direction: String) {
     Box(
         modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp)
-            .background(SurfaceLight, RoundedCornerShape(8.dp))
-            .border(1.dp, BorderGrey, RoundedCornerShape(8.dp)).padding(16.dp),
+            .background(MaterialTheme.colorScheme.surface, RoundedCornerShape(8.dp))
+            .border(1.dp, MaterialTheme.colorScheme.outlineVariant, RoundedCornerShape(8.dp)).padding(16.dp),
         contentAlignment = Alignment.Center
     ) {
-        Text("No upcoming trains towards $direction", fontSize = 12.sp, color = TextGrey, textAlign = TextAlign.Center)
+        Text("No upcoming trains towards $direction", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant, textAlign = TextAlign.Center)
     }
 }

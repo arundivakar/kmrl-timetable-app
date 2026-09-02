@@ -11,13 +11,17 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.example.kmrltimetable.ui.TimetableViewModel
 import com.example.kmrltimetable.ui.components.*
 import com.example.kmrltimetable.ui.theme.KmrlTeal
 import java.util.Date
 
 @Composable
-fun TomorrowScreen(viewModel: TimetableViewModel) {
+fun TomorrowScreen(
+    viewModel: TimetableViewModel,
+    onFindTrainsClick: () -> Unit
+) {
     val uiState by viewModel.uiState.collectAsState()
     val stations by viewModel.stations.collectAsState()
 
@@ -41,31 +45,29 @@ fun TomorrowScreen(viewModel: TimetableViewModel) {
 
         Spacer(modifier = Modifier.height(16.dp))
 
+        // --- FIND TRAINS BUTTON ---
+        if (uiState.fromStation != null && uiState.toStation != null) {
+            Button(
+                onClick = onFindTrainsClick,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp)
+                    .height(48.dp),
+                shape = androidx.compose.foundation.shape.RoundedCornerShape(12.dp),
+                colors = ButtonDefaults.buttonColors(containerColor = KmrlTeal)
+            ) {
+                Text(
+                    "FIND TRAINS",
+                    color = androidx.compose.ui.graphics.Color.White,
+                    fontWeight = FontWeight.Bold,
+                    letterSpacing = 1.sp
+                )
+            }
+        }
+
         if (uiState.isLoading) {
             Box(modifier = Modifier.fillMaxWidth().weight(1f), contentAlignment = Alignment.Center) {
                 CircularProgressIndicator(color = KmrlTeal)
-            }
-        } else if (uiState.fromStation != null && uiState.toStation != null) {
-            
-            if (uiState.allTrainsTomorrow.isEmpty()) {
-                EmptyState("No trains scheduled", "Please select a valid route.")
-            } else {
-                Text(
-                    text = "UPCOMING TRAINS",
-                    style = MaterialTheme.typography.labelLarge,
-                    color = KmrlTeal,
-                    fontWeight = FontWeight.Bold,
-                    modifier = Modifier.padding(start = 16.dp, end = 16.dp, bottom = 8.dp)
-                )
-                LazyColumn(
-                    modifier = Modifier.weight(1f),
-                    contentPadding = PaddingValues(horizontal = 16.dp, vertical = 4.dp),
-                    verticalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    itemsIndexed(uiState.allTrainsTomorrow) { index, train ->
-                        FollowingTrainRow(train, tomorrowDate, isTomorrow = true, index = index)
-                    }
-                }
             }
         }
     }

@@ -11,6 +11,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.Logout
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material.icons.outlined.*
 import androidx.compose.material3.*
@@ -52,12 +53,12 @@ fun AdminLoginScreen(viewModel: AdminViewModel, uiState: AdminUiState) {
     var passwordVisible by remember { mutableStateOf(false) }
 
     Box(
-        modifier = Modifier.fillMaxSize().background(BgLight),
+        modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background),
         contentAlignment = Alignment.Center
     ) {
         Card(
             modifier = Modifier.fillMaxWidth().padding(32.dp),
-            colors = CardDefaults.cardColors(containerColor = Color.White),
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
             elevation = CardDefaults.cardElevation(8.dp),
             shape = RoundedCornerShape(16.dp)
         ) {
@@ -74,10 +75,10 @@ fun AdminLoginScreen(viewModel: AdminViewModel, uiState: AdminUiState) {
                     Icon(Icons.Default.AdminPanelSettings, contentDescription = null, tint = Color.White, modifier = Modifier.size(36.dp))
                 }
 
-                Text("Admin Panel", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold, color = TextDark)
-                Text("KMRL Timetable Management", style = MaterialTheme.typography.bodyMedium, color = TextGrey)
+                Text("Admin Panel", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onBackground)
+                Text("KMRL Timetable Management", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
 
-                HorizontalDivider(color = BorderGrey)
+                HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
 
                 OutlinedTextField(
                     value = email,
@@ -87,7 +88,15 @@ fun AdminLoginScreen(viewModel: AdminViewModel, uiState: AdminUiState) {
                     modifier = Modifier.fillMaxWidth(),
                     singleLine = true,
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email),
-                    colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = KmrlTeal, focusedLabelColor = KmrlTeal)
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedBorderColor = KmrlTeal,
+                        focusedLabelColor = KmrlTeal,
+                        unfocusedBorderColor = MaterialTheme.colorScheme.outlineVariant,
+                        focusedTextColor = MaterialTheme.colorScheme.onSurface,
+                        unfocusedTextColor = MaterialTheme.colorScheme.onSurface,
+                        focusedContainerColor = MaterialTheme.colorScheme.surface,
+                        unfocusedContainerColor = MaterialTheme.colorScheme.surface
+                    )
                 )
 
                 OutlinedTextField(
@@ -97,13 +106,21 @@ fun AdminLoginScreen(viewModel: AdminViewModel, uiState: AdminUiState) {
                     leadingIcon = { Icon(Icons.Default.Lock, contentDescription = null, tint = KmrlTeal) },
                     trailingIcon = {
                         IconButton(onClick = { passwordVisible = !passwordVisible }) {
-                            Icon(if (passwordVisible) Icons.Default.VisibilityOff else Icons.Default.Visibility, null)
+                            Icon(if (passwordVisible) Icons.Default.VisibilityOff else Icons.Default.Visibility, null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
                         }
                     },
                     visualTransformation = if (passwordVisible) VisualTransformation.None else PasswordVisualTransformation(),
                     modifier = Modifier.fillMaxWidth(),
                     singleLine = true,
-                    colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = KmrlTeal, focusedLabelColor = KmrlTeal)
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedBorderColor = KmrlTeal,
+                        focusedLabelColor = KmrlTeal,
+                        unfocusedBorderColor = MaterialTheme.colorScheme.outlineVariant,
+                        focusedTextColor = MaterialTheme.colorScheme.onSurface,
+                        unfocusedTextColor = MaterialTheme.colorScheme.onSurface,
+                        focusedContainerColor = MaterialTheme.colorScheme.surface,
+                        unfocusedContainerColor = MaterialTheme.colorScheme.surface
+                    )
                 )
 
                 // Error message
@@ -154,12 +171,12 @@ fun AdminDashboardScreen(viewModel: AdminViewModel, uiState: AdminUiState) {
                         Icon(Icons.Default.Refresh, contentDescription = "Refresh", tint = Color.White)
                     }
                     IconButton(onClick = { viewModel.signOut() }) {
-                        Icon(Icons.Default.Logout, contentDescription = "Sign Out", tint = Color.White)
+                        Icon(Icons.AutoMirrored.Filled.Logout, contentDescription = "Sign Out", tint = Color.White)
                     }
                 }
             )
         },
-        containerColor = SurfaceLight
+        containerColor = MaterialTheme.colorScheme.background
     ) { padding ->
         Column(modifier = Modifier.padding(padding).fillMaxSize()) {
             // Success / Error banners
@@ -249,9 +266,9 @@ fun CalendarTab(viewModel: AdminViewModel, uiState: AdminUiState) {
             val assignedTimetable = uiState.dateAssignments[date]
 
             Card(
-                modifier = Modifier.fillMaxWidth().border(1.dp, BorderGrey, RoundedCornerShape(10.dp)),
+                modifier = Modifier.fillMaxWidth().border(1.dp, MaterialTheme.colorScheme.outlineVariant, RoundedCornerShape(10.dp)),
                 colors = CardDefaults.cardColors(
-                    containerColor = if (assignedTimetable != null) KmrlTeal.copy(alpha = 0.05f) else Color.White
+                    containerColor = if (assignedTimetable != null) KmrlTeal.copy(alpha = 0.1f) else MaterialTheme.colorScheme.surface
                 ),
                 shape = RoundedCornerShape(10.dp)
             ) {
@@ -263,17 +280,17 @@ fun CalendarTab(viewModel: AdminViewModel, uiState: AdminUiState) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Box(
                             modifier = Modifier.size(8.dp).background(
-                                if (assignedTimetable != null) KmrlLime else BorderGrey,
+                                if (assignedTimetable != null) KmrlLime else MaterialTheme.colorScheme.outlineVariant,
                                 CircleShape
                             )
                         )
                         Spacer(Modifier.width(12.dp))
                         Column {
-                            Text(label, fontWeight = FontWeight.Bold, color = TextDark, fontSize = 14.sp)
+                            Text(label, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface, fontSize = 14.sp)
                             Text(
                                 if (assignedTimetable != null) "Override: $assignedTimetable"
                                 else "Default timetable",
-                                color = if (assignedTimetable != null) KmrlTeal else TextGrey,
+                                color = if (assignedTimetable != null) KmrlTeal else MaterialTheme.colorScheme.onSurfaceVariant,
                                 fontSize = 12.sp,
                                 fontWeight = if (assignedTimetable != null) FontWeight.Medium else FontWeight.Normal
                             )
@@ -335,11 +352,11 @@ fun AssignTimetableDialog(
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        containerColor = Color.White,
+        containerColor = MaterialTheme.colorScheme.surface,
         title = {
             Column {
-                Text("Assign Timetable", fontWeight = FontWeight.Bold, color = TextDark)
-                Text(dateLabel, style = MaterialTheme.typography.bodySmall, color = TextGrey)
+                Text("Assign Timetable", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface)
+                Text(dateLabel, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
         },
         text = {
@@ -351,7 +368,7 @@ fun AssignTimetableDialog(
                     ) {
                         RadioButton(selected = selected == name, onClick = { selected = name }, colors = RadioButtonDefaults.colors(selectedColor = KmrlTeal))
                         Spacer(Modifier.width(8.dp))
-                        Text(name, color = TextDark, fontSize = 15.sp)
+                        Text(name, color = MaterialTheme.colorScheme.onSurface, fontSize = 15.sp)
                     }
                 }
             }
@@ -366,7 +383,7 @@ fun AssignTimetableDialog(
             }
         },
         dismissButton = {
-            TextButton(onClick = onDismiss) { Text("Cancel", color = TextGrey) }
+            TextButton(onClick = onDismiss) { Text("Cancel", color = MaterialTheme.colorScheme.onSurfaceVariant) }
         }
     )
 }
@@ -388,8 +405,8 @@ fun TimetablesTab(uiState: AdminUiState) {
 
         items(uiState.timetables) { timetable ->
             Card(
-                modifier = Modifier.fillMaxWidth().border(1.dp, BorderGrey, RoundedCornerShape(10.dp)),
-                colors = CardDefaults.cardColors(containerColor = Color.White),
+                modifier = Modifier.fillMaxWidth().border(1.dp, MaterialTheme.colorScheme.outlineVariant, RoundedCornerShape(10.dp)),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
                 shape = RoundedCornerShape(10.dp)
             ) {
                 Row(
@@ -398,16 +415,16 @@ fun TimetablesTab(uiState: AdminUiState) {
                 ) {
                     Box(modifier = Modifier.width(6.dp).fillMaxHeight().background(KmrlTeal))
                     Column(modifier = Modifier.weight(1f).padding(14.dp)) {
-                        Text(timetable.name, fontWeight = FontWeight.Bold, color = TextDark)
+                        Text(timetable.name, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface)
                         Text(timetable.type, style = MaterialTheme.typography.bodySmall, color = KmrlTeal)
                         timetable.notes?.let {
-                            Text(it, style = MaterialTheme.typography.bodySmall, color = TextGrey)
+                            Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                         }
                     }
                     timetable.trainCount?.let { count ->
                         Column(horizontalAlignment = Alignment.End, modifier = Modifier.padding(end = 14.dp)) {
                             Text("$count", fontWeight = FontWeight.Bold, color = KmrlTeal, fontSize = 18.sp)
-                            Text("trains", style = MaterialTheme.typography.labelSmall, color = TextGrey)
+                            Text("trains", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                         }
                     }
                 }
@@ -417,7 +434,7 @@ fun TimetablesTab(uiState: AdminUiState) {
         item {
             Spacer(Modifier.height(16.dp))
             Card(
-                modifier = Modifier.fillMaxWidth().border(1.dp, BorderGrey, RoundedCornerShape(10.dp)),
+                modifier = Modifier.fillMaxWidth().border(1.dp, MaterialTheme.colorScheme.outlineVariant, RoundedCornerShape(10.dp)),
                 colors = CardDefaults.cardColors(containerColor = KmrlTeal.copy(alpha = 0.05f)),
                 shape = RoundedCornerShape(10.dp)
             ) {
@@ -427,7 +444,7 @@ fun TimetablesTab(uiState: AdminUiState) {
                     Text(
                         "To add new timetables, use the Python import script on your PC. New timetables will appear here automatically.",
                         style = MaterialTheme.typography.bodySmall,
-                        color = TextDark
+                        color = MaterialTheme.colorScheme.onSurface
                     )
                 }
             }
@@ -472,17 +489,17 @@ fun SyncTab(uiState: AdminUiState, viewModel: AdminViewModel) {
         }
         item {
             Card(
-                modifier = Modifier.fillMaxWidth().border(1.dp, BorderGrey, RoundedCornerShape(10.dp)),
-                colors = CardDefaults.cardColors(containerColor = Color.White),
+                modifier = Modifier.fillMaxWidth().border(1.dp, MaterialTheme.colorScheme.outlineVariant, RoundedCornerShape(10.dp)),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
                 shape = RoundedCornerShape(10.dp)
             ) {
                 Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                    Text("How sync works", fontWeight = FontWeight.Bold, color = TextDark)
+                    Text("How sync works", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface)
                     Spacer(Modifier.height(4.dp))
-                    Text("• Users sync automatically when they open the app", style = MaterialTheme.typography.bodySmall, color = TextGrey)
-                    Text("• Version check is instant (~100ms)", style = MaterialTheme.typography.bodySmall, color = TextGrey)
-                    Text("• Full sync only downloads when version changes", style = MaterialTheme.typography.bodySmall, color = TextGrey)
-                    Text("• Users without internet use their last cached config", style = MaterialTheme.typography.bodySmall, color = TextGrey)
+                    Text("• Users sync automatically when they open the app", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text("• Version check is instant (~100ms)", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text("• Full sync only downloads when version changes", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text("• Users without internet use their last cached config", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
             }
         }
@@ -492,8 +509,8 @@ fun SyncTab(uiState: AdminUiState, viewModel: AdminViewModel) {
 @Composable
 fun InfoCard(label: String, value: String, icon: androidx.compose.ui.graphics.vector.ImageVector) {
     Card(
-        modifier = Modifier.fillMaxWidth().border(1.dp, BorderGrey, RoundedCornerShape(10.dp)),
-        colors = CardDefaults.cardColors(containerColor = Color.White),
+        modifier = Modifier.fillMaxWidth().border(1.dp, MaterialTheme.colorScheme.outlineVariant, RoundedCornerShape(10.dp)),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
         shape = RoundedCornerShape(10.dp)
     ) {
         Row(modifier = Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -502,8 +519,8 @@ fun InfoCard(label: String, value: String, icon: androidx.compose.ui.graphics.ve
             }
             Spacer(Modifier.width(16.dp))
             Column {
-                Text(label, style = MaterialTheme.typography.bodySmall, color = TextGrey)
-                Text(value, fontWeight = FontWeight.Bold, color = TextDark, fontSize = 16.sp)
+                Text(label, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text(value, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface, fontSize = 16.sp)
             }
         }
     }

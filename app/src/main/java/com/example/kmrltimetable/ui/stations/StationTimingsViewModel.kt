@@ -18,7 +18,7 @@ import java.util.Date
 // ── Enums ─────────────────────────────────────────────────────────────────────
 
 enum class TrainFilter { ALL, UPCOMING }
-enum class DirectionFilter { BOTH, TO_ALUVA, TO_TPHT }
+enum class DirectionFilter { TO_ALUVA, TO_TPHT }
 
 // ── UI State ──────────────────────────────────────────────────────────────────
 
@@ -26,7 +26,7 @@ data class StationTimingsUiState(
     val selectedStation: StationEntity? = null,
     val isTomorrow: Boolean = false,
     val trainFilter: TrainFilter = TrainFilter.UPCOMING,
-    val dirFilter: DirectionFilter = DirectionFilter.BOTH,
+    val dirFilter: DirectionFilter = DirectionFilter.TO_ALUVA,
     val timetableName: String = "",
     val toAluvaTrains: List<StationTrainResult> = emptyList(),  // direction DOWN = towards Aluva
     val toTphtTrains: List<StationTrainResult> = emptyList(),   // direction UP = towards TPHT
@@ -56,7 +56,12 @@ class StationTimingsViewModel(
     val uiState: StateFlow<StationTimingsUiState> = _uiState
 
     fun selectStation(station: StationEntity) {
-        _uiState.update { it.copy(selectedStation = station) }
+        val defaultDir = if (station.code == "ALVA" || station.name.contains("Aluva", ignoreCase = true)) {
+            DirectionFilter.TO_TPHT
+        } else {
+            DirectionFilter.TO_ALUVA
+        }
+        _uiState.update { it.copy(selectedStation = station, dirFilter = defaultDir) }
         fetchTimings()
     }
 

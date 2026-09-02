@@ -7,14 +7,16 @@ import androidx.room.PrimaryKey
 data class JourneyResult(
     @ColumnInfo(name = "train_no") val trainNo: String,
     @ColumnInfo(name = "departure_time") val departureTime: String,
-    @ColumnInfo(name = "arrival_time") val arrivalTime: String
+    @ColumnInfo(name = "arrival_time") val arrivalTime: String,
+    @ColumnInfo(name = "terminal_departure_time") val terminalDepartureTime: String
 )
 
 /** Result for the Station Timings feature — one train calling at a specific station */
 data class StationTrainResult(
     @ColumnInfo(name = "train_no") val trainNo: String,
     @ColumnInfo(name = "direction") val direction: String,    // "UP" = towards TPHT, "DOWN" = towards Aluva
-    @ColumnInfo(name = "departure_time") val departureTime: String  // time at this station
+    @ColumnInfo(name = "departure_time") val departureTime: String,  // time at this station
+    @ColumnInfo(name = "terminal_departure_time") val terminalDepartureTime: String
 )
 
 @Entity(tableName = "stations")

@@ -65,7 +65,8 @@ interface TimetableDao {
         SELECT 
             t.train_no as train_no,
             st_from.departure_time as departure_time,
-            st_to.departure_time as arrival_time
+            st_to.departure_time as arrival_time,
+            (SELECT MIN(departure_time) FROM stop_times WHERE trip_id = t.id AND departure_time IS NOT NULL) as terminal_departure_time
         FROM stop_times st_from
         INNER JOIN trips t ON st_from.trip_id = t.id
         INNER JOIN stop_times st_to ON t.id = st_to.trip_id
@@ -92,7 +93,8 @@ interface TimetableDao {
         SELECT
             t.train_no as train_no,
             t.direction as direction,
-            st.departure_time as departure_time
+            st.departure_time as departure_time,
+            (SELECT MIN(departure_time) FROM stop_times WHERE trip_id = t.id AND departure_time IS NOT NULL) as terminal_departure_time
         FROM stop_times st
         INNER JOIN trips t ON st.trip_id = t.id
         WHERE t.timetable_id = :timetableId

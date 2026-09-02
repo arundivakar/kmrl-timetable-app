@@ -32,15 +32,16 @@ import com.example.kmrltimetable.ui.screens.FullTimetableScreen
 import com.example.kmrltimetable.ui.screens.StationTimingsScreen
 import com.example.kmrltimetable.ui.screens.TodayScreen
 import com.example.kmrltimetable.ui.screens.TomorrowScreen
+import com.example.kmrltimetable.ui.screens.TrainSearchResultsScreen
+import androidx.activity.compose.BackHandler
 import com.example.kmrltimetable.ui.stations.StationTimingsViewModel
-import com.example.kmrltimetable.ui.theme.KmrlTeal
-import com.example.kmrltimetable.ui.theme.KmrlTheme
-import com.example.kmrltimetable.ui.theme.TextGrey
+import com.example.kmrltimetable.ui.theme.*
+import androidx.compose.material.icons.automirrored.filled.List
 
 enum class NavTab(val title: String, val icon: ImageVector, val showInBar: Boolean = true) {
     TODAY("Today", Icons.Default.Home),
     TOMORROW("Tomorrow", Icons.Default.DateRange),
-    FULL("Full", Icons.Default.List),
+    FULL("Full", Icons.AutoMirrored.Filled.List),
     STATION("Station", Icons.Outlined.DirectionsSubway),
     ADMIN("Admin", Icons.Default.AdminPanelSettings, showInBar = false)
 }
@@ -56,13 +57,25 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         WindowCompat.setDecorFitsSystemWindows(window, false)
 
+        val themePrefs = ThemePreferences(this)
+
         setContent {
-            KmrlTheme {
+            var isDarkMode by remember { mutableStateOf(themePrefs.isDarkMode) }
+
+            KmrlTheme(darkTheme = isDarkMode) {
                 Surface(
                     modifier = Modifier.fillMaxSize(),
                     color = MaterialTheme.colorScheme.background
                 ) {
-                    MainScreen(viewModel = viewModel)
+                    MainScreen(
+                        viewModel = viewModel,
+                        isDarkMode = isDarkMode,
+                        onThemeToggle = {
+                            val newMode = !isDarkMode
+                            isDarkMode = newMode
+                            themePrefs.isDarkMode = newMode
+                        }
+                    )
                 }
             }
         }
@@ -70,9 +83,14 @@ class MainActivity : ComponentActivity() {
 }
 
 @Composable
-fun MainScreen(viewModel: TimetableViewModel) {
+fun MainScreen(
+    viewModel: TimetableViewModel,
+    isDarkMode: Boolean,
+    onThemeToggle: () -> Unit
+) {
     var selectedTab by remember { mutableStateOf(NavTab.TODAY) }
     var logoTapCount by remember { mutableIntStateOf(0) }
+    var searchResultMode by remember { mutableStateOf(false) }
 
     // ViewModels — created lazily with access to the shared repository/DAO
     val app = androidx.compose.ui.platform.LocalContext.current.applicationContext as KMRLApplication
@@ -93,64 +111,91 @@ fun MainScreen(viewModel: TimetableViewModel) {
         }
     )
 
-    Scaffold(
-        modifier = Modifier.systemBarsPadding(),
-        containerColor = MaterialTheme.colorScheme.background,
-        bottomBar = {
-            NavigationBar(containerColor = Color.White, tonalElevation = 8.dp) {
-                NavTab.values().filter { it.showInBar }.forEach { tab ->
-                    NavigationBarItem(
-                        selected = selectedTab == tab,
-                        onClick = { selectedTab = tab },
-                        icon = { Icon(tab.icon, contentDescription = tab.title) },
-                        label = { Text(tab.title) },
-                        colors = NavigationBarItemDefaults.colors(
-                            selectedIconColor = KmrlTeal,
-                            selectedTextColor = KmrlTeal,
-                            indicatorColor = Color.Transparent,
-                            unselectedIconColor = TextGrey,
-                            unselectedTextColor = TextGrey
+    BackHandler(enabled = searchResultMode) {
+        searchResultMode = false
+    }
+
+    if (searchResultMode) {
+        TrainSearchResultsScreen(
+            viewModel = viewModel,
+            isTomorrow = selectedTab == NavTab.TOMORROW,
+            onBack = { searchResultMode = false }
+        )
+    } else {
+        Scaffold(
+            modifier = Modifier.systemBarsPadding(),
+            containerColor = MaterialTheme.colorScheme.background,
+            bottomBar = {
+                NavigationBar(
+                    containerColor = MaterialTheme.colorScheme.surface,
+                    tonalElevation = 8.dp
+                ) {
+                    NavTab.values().filter { it.showInBar }.forEach { tab ->
+                        NavigationBarItem(
+                            selected = selectedTab == tab,
+                            onClick = { selectedTab = tab },
+                            icon = { Icon(tab.icon, contentDescription = tab.title) },
+                            label = { Text(tab.title) },
+                            colors = NavigationBarItemDefaults.colors(
+                                selectedIconColor = KmrlTeal,
+                                selectedTextColor = KmrlTeal,
+                                indicatorColor = Color.Transparent,
+                                unselectedIconColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                                unselectedTextColor = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
                         )
-                    )
-                }
-                // Hidden Admin tab — visible only after 5 rapid taps on it
-                if (logoTapCount >= 5 || selectedTab == NavTab.ADMIN) {
-                    NavigationBarItem(
-                        selected = selectedTab == NavTab.ADMIN,
-                        onClick = { selectedTab = NavTab.ADMIN },
-                        icon = { Icon(NavTab.ADMIN.icon, contentDescription = "Admin") },
-                        label = { Text("Admin") },
-                        colors = NavigationBarItemDefaults.colors(
-                            selectedIconColor = KmrlTeal,
-                            selectedTextColor = KmrlTeal,
-                            indicatorColor = Color.Transparent,
-                            unselectedIconColor = TextGrey,
-                            unselectedTextColor = TextGrey
+                    }
+                    // Hidden Admin tab — visible only after 5 rapid taps on it
+                    if (logoTapCount >= 5 || selectedTab == NavTab.ADMIN) {
+                        NavigationBarItem(
+                            selected = selectedTab == NavTab.ADMIN,
+                            onClick = { selectedTab = NavTab.ADMIN },
+                            icon = { Icon(NavTab.ADMIN.icon, contentDescription = "Admin") },
+                            label = { Text("Admin") },
+                            colors = NavigationBarItemDefaults.colors(
+                                selectedIconColor = KmrlTeal,
+                                selectedTextColor = KmrlTeal,
+                                indicatorColor = Color.Transparent,
+                                unselectedIconColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                                unselectedTextColor = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
                         )
-                    )
+                    }
                 }
             }
-        }
-    ) { paddingValues ->
-        Box(
-            modifier = Modifier
-                .padding(paddingValues)
-                .fillMaxSize()
-                // Tapping the screen area 5 times reveals Admin tab
-                .pointerInput(Unit) {
-                    detectTapGestures(
-                        onDoubleTap = {
-                            logoTapCount++
-                        }
+        ) { paddingValues ->
+            Box(
+                modifier = Modifier
+                    .padding(paddingValues)
+                    .fillMaxSize()
+                    // Tapping the screen area 5 times reveals Admin tab
+                    .pointerInput(Unit) {
+                        detectTapGestures(
+                            onDoubleTap = {
+                                logoTapCount++
+                            }
+                        )
+                    }
+            ) {
+                when (selectedTab) {
+                    NavTab.TODAY    -> TodayScreen(
+                        viewModel = viewModel,
+                        onFindTrainsClick = { searchResultMode = true },
+                        onStationTimingSearch = { station ->
+                            selectedTab = NavTab.STATION
+                            stationViewModel.selectStation(station)
+                        },
+                        isDarkMode = isDarkMode,
+                        onThemeToggle = onThemeToggle
                     )
+                    NavTab.TOMORROW -> TomorrowScreen(
+                        viewModel = viewModel,
+                        onFindTrainsClick = { searchResultMode = true }
+                    )
+                    NavTab.FULL     -> FullTimetableScreen(viewModel)
+                    NavTab.STATION  -> StationTimingsScreen(stationViewModel)
+                    NavTab.ADMIN    -> AdminScreen(adminViewModel)
                 }
-        ) {
-            when (selectedTab) {
-                NavTab.TODAY    -> TodayScreen(viewModel)
-                NavTab.TOMORROW -> TomorrowScreen(viewModel)
-                NavTab.FULL     -> FullTimetableScreen(viewModel)
-                NavTab.STATION  -> StationTimingsScreen(stationViewModel)
-                NavTab.ADMIN    -> AdminScreen(adminViewModel)
             }
         }
     }

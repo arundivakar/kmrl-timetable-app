@@ -21,7 +21,7 @@ fun getCountdownMillis(targetTimeStr: String, current: Date): Long {
 
 fun getCountdownFormatted(targetTimeStr: String, current: Date): String {
     val diff = getCountdownMillis(targetTimeStr, current)
-    if (diff <= 0) return "Due"
+    if (diff <= 0) return "Departed"
     val mins = diff / 60000
     val secs = (diff % 60000) / 1000
     return if (mins > 0) String.format(Locale.US, "%dm %02ds", mins, secs) else String.format(Locale.US, "%02ds", secs)
@@ -29,7 +29,7 @@ fun getCountdownFormatted(targetTimeStr: String, current: Date): String {
 
 fun getCountdownFormattedMins(targetTimeStr: String, current: Date): String {
     val diff = getCountdownMillis(targetTimeStr, current)
-    if (diff <= 0) return "Due"
+    if (diff <= 0) return "Departed"
     val mins = diff / 60000
     val hours = mins / 60
     val remainingMins = mins % 60
@@ -51,4 +51,16 @@ fun getDurationStr(dep: String, arr: String): String {
         val mins = diff / 60000
         return "${mins} min"
     } catch(e: Exception) { return "" }
+}
+
+fun isRevenueService(terminalDepartureTime: String, stationDepartureTime: String, isSunday: Boolean): Boolean {
+    val morningStart = if (isSunday) "07:30:00" else "06:00:00"
+    val eveningEnd = "23:00:00"
+    
+    // To be revenue, it must depart the current station AT OR AFTER morning start
+    // AND it must have departed the terminal AT OR BEFORE evening end
+    val afterMorningStart = stationDepartureTime >= morningStart
+    val beforeEveningEnd = terminalDepartureTime <= eveningEnd
+
+    return afterMorningStart && beforeEveningEnd
 }

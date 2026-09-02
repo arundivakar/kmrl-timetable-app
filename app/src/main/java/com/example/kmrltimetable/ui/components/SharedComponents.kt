@@ -19,9 +19,9 @@ fun EmptyState(title: String, message: String) {
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center
     ) {
-        Icon(Icons.Outlined.Train, contentDescription = null, tint = BorderGrey, modifier = Modifier.size(48.dp))
+        Icon(Icons.Outlined.Train, contentDescription = null, tint = MaterialTheme.colorScheme.outlineVariant, modifier = Modifier.size(48.dp))
         Spacer(modifier = Modifier.height(16.dp))
-        Text(title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = TextDark)
-        Text(message, textAlign = TextAlign.Center, color = TextGrey, style = MaterialTheme.typography.bodyMedium)
+        Text(title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onBackground)
+        Text(message, textAlign = TextAlign.Center, color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.bodyMedium)
     }
 }
