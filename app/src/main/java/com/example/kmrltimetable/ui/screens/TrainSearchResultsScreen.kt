@@ -1,6 +1,7 @@
 package com.example.kmrltimetable.ui.screens
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
@@ -15,9 +16,7 @@ import androidx.compose.material.icons.filled.SwapHoriz
 import androidx.compose.material.icons.outlined.CalendarToday
 import androidx.compose.material.icons.outlined.Schedule
 import androidx.compose.material3.*
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.collectAsState
-import androidx.compose.runtime.getValue
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -29,8 +28,10 @@ import com.example.kmrltimetable.ui.TimetableViewModel
 import com.example.kmrltimetable.ui.components.*
 import com.example.kmrltimetable.ui.theme.*
 import java.text.SimpleDateFormat
+import java.util.Calendar
 import java.util.Date
 import java.util.Locale
+import java.util.TimeZone
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -43,12 +44,91 @@ fun TrainSearchResultsScreen(
 ) {
     val uiState by viewModel.uiState.collectAsState()
     val currentTime by viewModel.currentTime.collectAsState()
-    
-    val trains = if (isTomorrow) uiState.allTrainsTomorrow else uiState.allTrainsToday
-    
-    // Target date for display
-    val targetDate = if (isTomorrow) Date(System.currentTimeMillis() + 86_400_000L) else Date()
+
+    val todayDate = remember { Date() }
+    val tomorrowDate = remember { Date(System.currentTimeMillis() + 86_400_000L) }
+    val initialDate = if (isTomorrow) tomorrowDate else todayDate
+
+    var selectedDate by remember(isTomorrow) { mutableStateOf(initialDate) }
+    var showDatePicker by remember { mutableStateOf(false) }
+
     val dateFormat = SimpleDateFormat("EEEE, d MMM yyyy", Locale.US)
+
+    val isToday = isSameDay(selectedDate, currentTime)
+    val isTomorrowDay = isSameDay(selectedDate, tomorrowDate)
+
+    val (trains, timetableName) = when {
+        uiState.customSelectedDate != null && isSameDay(uiState.customSelectedDate!!, selectedDate) -> {
+            Pair(uiState.customDateTrains, uiState.customDateTimetableName)
+        }
+        isToday -> {
+            Pair(uiState.allTrainsToday, uiState.activeTimetableName)
+        }
+        isTomorrowDay -> {
+            Pair(uiState.allTrainsTomorrow, uiState.tomorrowTimetableName)
+        }
+        else -> {
+            Pair(uiState.customDateTrains, uiState.customDateTimetableName)
+        }
+    }
+
+    LaunchedEffect(selectedDate) {
+        if (!isToday && !(isTomorrowDay && uiState.customSelectedDate == null)) {
+            if (uiState.customSelectedDate == null || !isSameDay(uiState.customSelectedDate!!, selectedDate)) {
+                viewModel.fetchTrainsForCustomDate(selectedDate)
+            }
+        }
+    }
+
+    // Material 3 Date Picker Dialog
+    if (showDatePicker) {
+        val datePickerState = rememberDatePickerState(
+            initialSelectedDateMillis = selectedDate.time
+        )
+        DatePickerDialog(
+            onDismissRequest = { showDatePicker = false },
+            confirmButton = {
+                TextButton(onClick = {
+                    datePickerState.selectedDateMillis?.let { utcMillis ->
+                        val utcCal = Calendar.getInstance(TimeZone.getTimeZone("UTC")).apply { timeInMillis = utcMillis }
+                        val localCal = Calendar.getInstance().apply {
+                            set(Calendar.YEAR, utcCal.get(Calendar.YEAR))
+                            set(Calendar.MONTH, utcCal.get(Calendar.MONTH))
+                            set(Calendar.DAY_OF_MONTH, utcCal.get(Calendar.DAY_OF_MONTH))
+                            set(Calendar.HOUR_OF_DAY, 0)
+                            set(Calendar.MINUTE, 0)
+                            set(Calendar.SECOND, 0)
+                            set(Calendar.MILLISECOND, 0)
+                        }
+                        val pickedDate = localCal.time
+                        selectedDate = pickedDate
+                        if (isSameDay(pickedDate, Date())) {
+                            viewModel.clearCustomDate()
+                        } else {
+                            viewModel.fetchTrainsForCustomDate(pickedDate)
+                        }
+                    }
+                    showDatePicker = false
+                }) {
+                    Text("OK", color = KmrlTeal, fontWeight = FontWeight.Bold)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showDatePicker = false }) {
+                    Text("Cancel", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+            }
+        ) {
+            DatePicker(
+                state = datePickerState,
+                colors = DatePickerDefaults.colors(
+                    selectedDayContainerColor = KmrlTeal,
+                    todayDateBorderColor = KmrlTeal,
+                    todayContentColor = KmrlTeal
+                )
+            )
+        }
+    }
 
     Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
         // App Bar
@@ -127,10 +207,45 @@ fun TrainSearchResultsScreen(
                             val dur = getDurationStr(trains.firstOrNull()?.departureTime ?: "", trains.firstOrNull()?.arrivalTime ?: "")
                             Text("Travel time: $dur", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurface, fontWeight = FontWeight.Medium)
                         }
+                        
+                        // Clickable Date Picker Pill
+                        Surface(
+                            shape = RoundedCornerShape(8.dp),
+                            color = KmrlTeal.copy(alpha = 0.12f),
+                            modifier = Modifier.clickable { showDatePicker = true }
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text(
+                                    text = dateFormat.format(selectedDate),
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = KmrlTeal,
+                                    fontWeight = FontWeight.Bold
+                                )
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Icon(
+                                    Icons.Outlined.CalendarToday,
+                                    contentDescription = "Change Date",
+                                    tint = KmrlTeal,
+                                    modifier = Modifier.size(15.dp)
+                                )
+                            }
+                        }
+                    }
+
+                    if (timetableName.isNotEmpty()) {
+                        Spacer(modifier = Modifier.height(8.dp))
                         Row(verticalAlignment = Alignment.CenterVertically) {
-                            Text(dateFormat.format(targetDate), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurface, fontWeight = FontWeight.Medium)
+                            Icon(Icons.Outlined.Schedule, contentDescription = null, tint = KmrlTeal, modifier = Modifier.size(14.dp))
                             Spacer(modifier = Modifier.width(4.dp))
-                            Icon(Icons.Outlined.CalendarToday, contentDescription = null, tint = MaterialTheme.colorScheme.onSurface, modifier = Modifier.size(16.dp))
+                            Text(
+                                text = "Schedule: $timetableName",
+                                fontSize = 11.sp,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                fontWeight = FontWeight.Medium
+                            )
                         }
                     }
                 }
@@ -138,12 +253,18 @@ fun TrainSearchResultsScreen(
             
             Spacer(modifier = Modifier.height(16.dp))
 
-            val validTrains = trains.filter { train ->
-                if (isTomorrow) true else isTrainValidUpcoming(train.departureTime, currentTime)
+            val validTrains = if (isToday) {
+                trains.filter { isTrainValidUpcoming(it.departureTime, currentTime) }
+            } else {
+                trains
             }
 
             if (validTrains.isEmpty()) {
-                EmptyState("No trains available", "All trains have departed for today.")
+                if (isToday) {
+                    EmptyState("No trains available", "All trains have departed for today.")
+                } else {
+                    EmptyState("No trains found", "No trains scheduled for ${dateFormat.format(selectedDate)}.")
+                }
             } else {
                 LazyColumn(
                     modifier = Modifier.fillMaxSize(),
@@ -152,7 +273,7 @@ fun TrainSearchResultsScreen(
                     item {
                         Row(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                             Text(
-                                text = "NEXT TRAIN",
+                                text = if (isToday) "NEXT TRAIN" else "FIRST TRAIN",
                                 style = MaterialTheme.typography.labelLarge,
                                 color = KmrlTeal,
                                 fontWeight = FontWeight.Bold
@@ -164,7 +285,7 @@ fun TrainSearchResultsScreen(
                             )
                         }
                         Spacer(modifier = Modifier.height(8.dp))
-                        NextTrainCard(validTrains.first(), currentTime, isTomorrow = isTomorrow)
+                        NextTrainCard(validTrains.first(), currentTime, isTomorrow = !isToday)
                         Spacer(modifier = Modifier.height(16.dp))
                     }
                     
@@ -180,7 +301,7 @@ fun TrainSearchResultsScreen(
                         }
                         itemsIndexed(validTrains.drop(1)) { index, train ->
                             Box(modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)) {
-                                FollowingTrainRow(train, currentTime, isTomorrow = isTomorrow, index = index)
+                                FollowingTrainRow(train, currentTime, isTomorrow = !isToday, index = index)
                             }
                         }
                     }

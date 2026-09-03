@@ -22,6 +22,9 @@ data class TimetableUiState(
     val activeTimetableName: String = "",
     val allTrainsTomorrow: List<JourneyResult> = emptyList(),
     val tomorrowTimetableName: String = "",
+    val customSelectedDate: Date? = null,
+    val customDateTrains: List<JourneyResult> = emptyList(),
+    val customDateTimetableName: String = "",
     val isLoading: Boolean = false
 )
 
@@ -61,12 +64,46 @@ class TimetableViewModel(
         fetchUpcomingTrains()
     }
 
+    fun fetchTrainsForCustomDate(date: Date) {
+        val from = _uiState.value.fromStation ?: return
+        val to = _uiState.value.toStation ?: return
+        if (from.id == to.id) return
+
+        viewModelScope.launch {
+            _uiState.update { it.copy(isLoading = true, customSelectedDate = date) }
+            val result = repository.getUpcomingTrains(
+                fromStationId = from.id,
+                toStationId = to.id,
+                currentDate = date,
+                timeStrOverride = "00:00:00",
+                limit = 1000
+            )
+            _uiState.update {
+                it.copy(
+                    customDateTrains = result.second,
+                    customDateTimetableName = result.first,
+                    isLoading = false
+                )
+            }
+        }
+    }
+
+    fun clearCustomDate() {
+        _uiState.update {
+            it.copy(
+                customSelectedDate = null,
+                customDateTrains = emptyList(),
+                customDateTimetableName = ""
+            )
+        }
+    }
+
     private fun fetchUpcomingTrains() {
         val from = _uiState.value.fromStation ?: return
         val to = _uiState.value.toStation ?: return
         
         if (from.id == to.id) {
-            _uiState.update { it.copy(allTrainsToday = emptyList()) }
+            _uiState.update { it.copy(allTrainsToday = emptyList(), allTrainsTomorrow = emptyList(), customDateTrains = emptyList()) }
             return
         }
 
@@ -92,12 +129,25 @@ class TimetableViewModel(
                 limit = 1000
             )
 
+            val customDate = _uiState.value.customSelectedDate
+            val customResult = if (customDate != null) {
+                repository.getUpcomingTrains(
+                    fromStationId = from.id,
+                    toStationId = to.id,
+                    currentDate = customDate,
+                    timeStrOverride = "00:00:00",
+                    limit = 1000
+                )
+            } else null
+
             _uiState.update { 
                 it.copy(
                     allTrainsToday = todayResult.second, 
                     activeTimetableName = todayResult.first,
                     allTrainsTomorrow = tomorrowResult.second,
                     tomorrowTimetableName = tomorrowResult.first,
+                    customDateTrains = customResult?.second ?: it.customDateTrains,
+                    customDateTimetableName = customResult?.first ?: it.customDateTimetableName,
                     isLoading = false
                 ) 
             }

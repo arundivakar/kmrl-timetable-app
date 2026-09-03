@@ -196,4 +196,15 @@ class TrainGracePeriodTest {
         assertEquals("75m 00s", getCountdownFormatted(targetTime, t1h15m))
         assertEquals("1h 15m", getCountdownFormattedMins(targetTime, t1h15m))
     }
+
+    @Test
+    fun testIsSameDay() {
+        val format = SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.US)
+        val d1 = format.parse("2026-09-03 10:00:00")!!
+        val d2 = format.parse("2026-09-03 23:59:59")!!
+        val d3 = format.parse("2026-09-04 00:00:00")!!
+
+        assertTrue(com.example.kmrltimetable.ui.components.isSameDay(d1, d2))
+        assertFalse(com.example.kmrltimetable.ui.components.isSameDay(d1, d3))
+    }
 }
