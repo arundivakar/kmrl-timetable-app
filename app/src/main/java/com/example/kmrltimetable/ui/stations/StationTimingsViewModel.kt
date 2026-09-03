@@ -66,7 +66,12 @@ class StationTimingsViewModel(
     }
 
     fun setTomorrow(isTomorrow: Boolean) {
-        _uiState.update { it.copy(isTomorrow = isTomorrow) }
+        _uiState.update { 
+            it.copy(
+                isTomorrow = isTomorrow,
+                trainFilter = if (isTomorrow) TrainFilter.ALL else TrainFilter.UPCOMING
+            ) 
+        }
         fetchTimings()
     }
 

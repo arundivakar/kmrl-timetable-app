@@ -144,20 +144,22 @@ fun StationTimingsScreen(
         Surface(color = MaterialTheme.colorScheme.surface, shadowElevation = 2.dp, modifier = Modifier.fillMaxWidth()) {
             Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 10.dp)) {
 
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    StyledFilterChip(
-                        label = "UPCOMING",
-                        selected = uiState.trainFilter == TrainFilter.UPCOMING,
-                        onClick = { viewModel.setFilter(TrainFilter.UPCOMING) }
-                    )
-                    StyledFilterChip(
-                        label = "ALL TRAINS",
-                        selected = uiState.trainFilter == TrainFilter.ALL,
-                        onClick = { viewModel.setFilter(TrainFilter.ALL) }
-                    )
+                // Only show UPCOMING / ALL TRAINS toggle for TODAY; Tomorrow shows the full schedule
+                if (!uiState.isTomorrow) {
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        StyledFilterChip(
+                            label = "UPCOMING",
+                            selected = uiState.trainFilter == TrainFilter.UPCOMING,
+                            onClick = { viewModel.setFilter(TrainFilter.UPCOMING) }
+                        )
+                        StyledFilterChip(
+                            label = "ALL TRAINS",
+                            selected = uiState.trainFilter == TrainFilter.ALL,
+                            onClick = { viewModel.setFilter(TrainFilter.ALL) }
+                        )
+                    }
+                    Spacer(Modifier.height(10.dp))
                 }
-
-                Spacer(Modifier.height(12.dp))
 
                 DirectionSegmentedControl(
                     selected = uiState.dirFilter,
@@ -167,9 +169,14 @@ fun StationTimingsScreen(
                 if (uiState.timetableName.isNotEmpty()) {
                     Spacer(Modifier.height(8.dp))
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(Icons.Outlined.Schedule, contentDescription = null, tint = KmrlLime, modifier = Modifier.size(14.dp))
+                        Icon(Icons.Outlined.Schedule, contentDescription = null, tint = KmrlTeal, modifier = Modifier.size(14.dp))
                         Spacer(Modifier.width(4.dp))
-                        Text(uiState.timetableName, fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Text(
+                            text = if (uiState.isTomorrow) "Tomorrow's Schedule: ${uiState.timetableName}" else "Active Schedule: ${uiState.timetableName}",
+                            fontSize = 11.sp,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            fontWeight = FontWeight.Medium
+                        )
                     }
                 }
             }
@@ -404,7 +411,7 @@ private fun NextTrainStationCard(
             Column(modifier = Modifier.weight(1f)) {
                 Surface(shape = RoundedCornerShape(6.dp), color = Color.White.copy(alpha = 0.2f)) {
                     Text(
-                        "NEXT TRAIN",
+                        if (isTomorrow) "FIRST TRAIN" else "NEXT TRAIN",
                         modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp),
                         color = Color.White,
                         fontSize = 9.sp,
@@ -423,7 +430,11 @@ private fun NextTrainStationCard(
                 }
             }
 
-            if (isDeparted) {
+            if (isTomorrow) {
+                Surface(shape = RoundedCornerShape(8.dp), color = Color.White.copy(alpha = 0.2f)) {
+                    Text("TOMORROW", modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp), color = Color.White, fontWeight = FontWeight.Bold, fontSize = 11.sp)
+                }
+            } else if (isDeparted) {
                 Surface(shape = RoundedCornerShape(8.dp), color = Color.White.copy(alpha = 0.2f)) {
                     Text("DEPARTED", modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp), color = Color.White, fontWeight = FontWeight.Bold, fontSize = 11.sp)
                 }
@@ -502,25 +513,27 @@ private fun DirectionSegmentedControl(selected: DirectionFilter, onSelect: (Dire
             selected = selected == DirectionFilter.TO_ALUVA,
             onClick = { onSelect(DirectionFilter.TO_ALUVA) },
             shape = SegmentedButtonDefaults.itemShape(0, 2),
+            icon = {},
             colors = SegmentedButtonDefaults.colors(
                 activeContainerColor = KmrlTeal,
                 activeContentColor = Color.White,
                 inactiveContainerColor = MaterialTheme.colorScheme.surface,
                 inactiveContentColor = MaterialTheme.colorScheme.onSurface
             )
-        ) { Text("→ ALUVA", fontSize = 11.sp) }
+        ) { Text("→ ALUVA", fontSize = 12.sp, fontWeight = FontWeight.Bold) }
 
         SegmentedButton(
             selected = selected == DirectionFilter.TO_TPHT,
             onClick = { onSelect(DirectionFilter.TO_TPHT) },
             shape = SegmentedButtonDefaults.itemShape(1, 2),
+            icon = {},
             colors = SegmentedButtonDefaults.colors(
-                activeContainerColor = KmrlLime,
+                activeContainerColor = KmrlTeal,
                 activeContentColor = Color.White,
                 inactiveContainerColor = MaterialTheme.colorScheme.surface,
                 inactiveContentColor = MaterialTheme.colorScheme.onSurface
             )
-        ) { Text("→ TPHT", fontSize = 11.sp) }
+        ) { Text("→ TPHT", fontSize = 12.sp, fontWeight = FontWeight.Bold) }
     }
 }
 

@@ -164,7 +164,7 @@ fun FollowingTrainRow(train: JourneyResult, currentTime: Date, isTomorrow: Boole
                         if (isArrDeparted) {
                             Text("DEPARTED", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant, fontWeight = FontWeight.Bold)
                         } else {
-                            Text("IN $arrCountdown", fontSize = 12.sp, color = KmrlLime, fontWeight = FontWeight.Bold)
+                            Text("IN $arrCountdown", fontSize = 12.sp, color = KmrlTeal, fontWeight = FontWeight.Bold)
                         }
                     }
                     Spacer(modifier = Modifier.width(8.dp))
