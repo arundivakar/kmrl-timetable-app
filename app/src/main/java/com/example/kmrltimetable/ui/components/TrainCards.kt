@@ -26,6 +26,12 @@ import java.util.Calendar
 @Composable
 fun NextTrainCard(train: JourneyResult, currentTime: Date, isTomorrow: Boolean) {
     val duration = getDurationStr(train.departureTime, train.arrivalTime)
+    val depMillis = if (isTomorrow) 1L else getCountdownMillis(train.departureTime, currentTime)
+    val arrMillis = if (isTomorrow) 1L else getCountdownMillis(train.arrivalTime, currentTime)
+
+    val isDepDeparted = !isTomorrow && depMillis <= 0
+    val isArrDeparted = !isTomorrow && arrMillis <= 0
+
     val depCountdown = if (isTomorrow) "Tomorrow" else getCountdownFormatted(train.departureTime, currentTime)
     val arrCountdown = if (isTomorrow) "Tomorrow" else getCountdownFormatted(train.arrivalTime, currentTime)
 
@@ -59,7 +65,11 @@ fun NextTrainCard(train: JourneyResult, currentTime: Date, isTomorrow: Boolean) 
                         Text("Departure", style = MaterialTheme.typography.bodySmall, color = Color.White.copy(alpha = 0.8f))
                     }
                     if (!isTomorrow) {
-                        Text("IN $depCountdown", style = MaterialTheme.typography.titleSmall, color = Color.White, fontWeight = FontWeight.Bold)
+                        if (isDepDeparted) {
+                            Text("DEPARTED", style = MaterialTheme.typography.titleSmall, color = Color.White, fontWeight = FontWeight.Bold)
+                        } else {
+                            Text("IN $depCountdown", style = MaterialTheme.typography.titleSmall, color = Color.White, fontWeight = FontWeight.Bold)
+                        }
                     }
                 }
                 
@@ -79,7 +89,11 @@ fun NextTrainCard(train: JourneyResult, currentTime: Date, isTomorrow: Boolean) 
                         Text("Arrival", style = MaterialTheme.typography.bodySmall, color = Color.White.copy(alpha = 0.8f))
                     }
                     if (!isTomorrow) {
-                        Text("IN $arrCountdown", style = MaterialTheme.typography.bodySmall, color = Color.White.copy(alpha = 0.8f))
+                        if (isArrDeparted) {
+                            Text("DEPARTED", style = MaterialTheme.typography.bodySmall, color = Color.White.copy(alpha = 0.8f), fontWeight = FontWeight.Bold)
+                        } else {
+                            Text("IN $arrCountdown", style = MaterialTheme.typography.bodySmall, color = Color.White.copy(alpha = 0.8f))
+                        }
                     }
                 }
                 
@@ -98,6 +112,12 @@ fun NextTrainCard(train: JourneyResult, currentTime: Date, isTomorrow: Boolean) 
 
 @Composable
 fun FollowingTrainRow(train: JourneyResult, currentTime: Date, isTomorrow: Boolean, index: Int) {
+    val depMillis = if (isTomorrow) 1L else getCountdownMillis(train.departureTime, currentTime)
+    val arrMillis = if (isTomorrow) 1L else getCountdownMillis(train.arrivalTime, currentTime)
+
+    val isDepDeparted = !isTomorrow && depMillis <= 0
+    val isArrDeparted = !isTomorrow && arrMillis <= 0
+
     val depCountdown = if (isTomorrow) "Tomorrow" else getCountdownFormattedMins(train.departureTime, currentTime)
     val arrCountdown = if (isTomorrow) "Tomorrow" else getCountdownFormattedMins(train.arrivalTime, currentTime)
     val colorAccent = if (index % 2 == 0) KmrlTeal else KmrlLime
@@ -136,8 +156,16 @@ fun FollowingTrainRow(train: JourneyResult, currentTime: Date, isTomorrow: Boole
                 
                 if (!isTomorrow) {
                     Column(horizontalAlignment = Alignment.End) {
-                        Text("IN $depCountdown", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface, fontSize = 14.sp)
-                        Text("IN $arrCountdown", fontSize = 12.sp, color = KmrlLime, fontWeight = FontWeight.Bold)
+                        if (isDepDeparted) {
+                            Text("DEPARTED", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 14.sp)
+                        } else {
+                            Text("IN $depCountdown", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface, fontSize = 14.sp)
+                        }
+                        if (isArrDeparted) {
+                            Text("DEPARTED", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant, fontWeight = FontWeight.Bold)
+                        } else {
+                            Text("IN $arrCountdown", fontSize = 12.sp, color = KmrlLime, fontWeight = FontWeight.Bold)
+                        }
                     }
                     Spacer(modifier = Modifier.width(8.dp))
                 }

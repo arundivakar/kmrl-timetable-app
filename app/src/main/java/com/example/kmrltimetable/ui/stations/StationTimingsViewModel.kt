@@ -44,11 +44,11 @@ class StationTimingsViewModel(
     val stations: StateFlow<List<StationEntity>> = repository.getStations()
         .stateIn(viewModelScope, SharingStarted.Lazily, emptyList())
 
-    /** 1-minute clock for live countdown updates */
+    /** 1-second clock for live countdown updates and dynamic departure state transitions */
     val currentTime: StateFlow<Date> = flow {
         while (true) {
             emit(Date())
-            delay(60_000L)
+            delay(1000L)
         }
     }.stateIn(viewModelScope, SharingStarted.Lazily, Date())
 

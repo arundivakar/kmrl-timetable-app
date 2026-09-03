@@ -139,7 +139,7 @@ fun TrainSearchResultsScreen(
             Spacer(modifier = Modifier.height(16.dp))
 
             val validTrains = trains.filter { train ->
-                if (isTomorrow) true else getCountdownMillis(train.departureTime, currentTime) > 0
+                if (isTomorrow) true else isTrainValidUpcoming(train.departureTime, currentTime)
             }
 
             if (validTrains.isEmpty()) {

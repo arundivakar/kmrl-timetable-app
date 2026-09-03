@@ -30,6 +30,7 @@ import com.example.kmrltimetable.data.local.entity.StationTrainResult
 import com.example.kmrltimetable.ui.components.StationSearchDialog
 import com.example.kmrltimetable.ui.components.getCountdownMillis
 import com.example.kmrltimetable.ui.components.getCountdownFormattedMins
+import com.example.kmrltimetable.ui.components.isTrainValidUpcoming
 import com.example.kmrltimetable.ui.components.isRevenueService
 import com.example.kmrltimetable.ui.stations.DirectionFilter
 import com.example.kmrltimetable.ui.stations.StationTimingsViewModel
@@ -179,8 +180,8 @@ fun StationTimingsScreen(
             uiState.selectedStation == null -> NoStationSelected()
             uiState.isLoading               -> LoadingState()
             else -> {
-                val aluvaList = filterByAvailability(uiState.toAluvaTrains, uiState.trainFilter, currentTime)
-                val tphtList  = filterByAvailability(uiState.toTphtTrains,  uiState.trainFilter, currentTime)
+                val aluvaList = filterByAvailability(uiState.toAluvaTrains, uiState.trainFilter, currentTime, uiState.isTomorrow)
+                val tphtList  = filterByAvailability(uiState.toTphtTrains,  uiState.trainFilter, currentTime, uiState.isTomorrow)
 
                 val isAluva = uiState.selectedStation?.code == "ALVA"
                 val isTpht  = uiState.selectedStation?.code == "TPHT"
@@ -283,10 +284,11 @@ fun StationTimingsScreen(
 private fun filterByAvailability(
     trains: List<StationTrainResult>,
     mode: TrainFilter,
-    now: Date
+    now: Date,
+    isTomorrow: Boolean
 ): List<StationTrainResult> = when (mode) {
     TrainFilter.ALL      -> trains
-    TrainFilter.UPCOMING -> trains.filter { getCountdownMillis(it.departureTime, now) > 0 }
+    TrainFilter.UPCOMING -> if (isTomorrow) trains else trains.filter { isTrainValidUpcoming(it.departureTime, now) }
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
