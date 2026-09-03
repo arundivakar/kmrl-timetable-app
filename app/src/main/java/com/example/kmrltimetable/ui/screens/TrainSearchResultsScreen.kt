@@ -57,27 +57,19 @@ fun TrainSearchResultsScreen(
     val isToday = isSameDay(selectedDate, currentTime)
     val isTomorrowDay = isSameDay(selectedDate, tomorrowDate)
 
-    val (trains, timetableName) = when {
-        uiState.customSelectedDate != null && isSameDay(uiState.customSelectedDate!!, selectedDate) -> {
-            Pair(uiState.customDateTrains, uiState.customDateTimetableName)
-        }
-        isToday -> {
-            Pair(uiState.allTrainsToday, uiState.activeTimetableName)
-        }
-        isTomorrowDay -> {
-            Pair(uiState.allTrainsTomorrow, uiState.tomorrowTimetableName)
-        }
-        else -> {
-            Pair(uiState.customDateTrains, uiState.customDateTimetableName)
-        }
+    // Always fetch fresh trains and timetable for the selectedDate (respects date overrides)
+    LaunchedEffect(selectedDate, uiState.fromStation?.id, uiState.toStation?.id) {
+        viewModel.fetchTrainsForCustomDate(selectedDate)
     }
 
-    LaunchedEffect(selectedDate) {
-        if (!isToday && !(isTomorrowDay && uiState.customSelectedDate == null)) {
-            if (uiState.customSelectedDate == null || !isSameDay(uiState.customSelectedDate!!, selectedDate)) {
-                viewModel.fetchTrainsForCustomDate(selectedDate)
-            }
-        }
+    val (trains, timetableName) = if (uiState.customSelectedDate != null && isSameDay(uiState.customSelectedDate!!, selectedDate)) {
+        Pair(uiState.customDateTrains, uiState.customDateTimetableName)
+    } else if (isToday) {
+        Pair(uiState.allTrainsToday, uiState.activeTimetableName)
+    } else if (isTomorrowDay) {
+        Pair(uiState.allTrainsTomorrow, uiState.tomorrowTimetableName)
+    } else {
+        Pair(uiState.customDateTrains, uiState.customDateTimetableName)
     }
 
     // Material 3 Date Picker Dialog
@@ -102,11 +94,7 @@ fun TrainSearchResultsScreen(
                         }
                         val pickedDate = localCal.time
                         selectedDate = pickedDate
-                        if (isSameDay(pickedDate, Date())) {
-                            viewModel.clearCustomDate()
-                        } else {
-                            viewModel.fetchTrainsForCustomDate(pickedDate)
-                        }
+                        viewModel.fetchTrainsForCustomDate(pickedDate)
                     }
                     showDatePicker = false
                 }) {

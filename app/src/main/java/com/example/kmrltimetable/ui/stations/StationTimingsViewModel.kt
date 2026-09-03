@@ -83,6 +83,10 @@ class StationTimingsViewModel(
         _uiState.update { it.copy(dirFilter = dir) }
     }
 
+    fun refreshTimings() {
+        fetchTimings()
+    }
+
     private fun fetchTimings() {
         val station = _uiState.value.selectedStation ?: return
         viewModelScope.launch {

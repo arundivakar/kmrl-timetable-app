@@ -64,6 +64,10 @@ class TimetableViewModel(
         fetchUpcomingTrains()
     }
 
+    fun refreshUpcomingTrains() {
+        fetchUpcomingTrains()
+    }
+
     fun fetchTrainsForCustomDate(date: Date) {
         val from = _uiState.value.fromStation ?: return
         val to = _uiState.value.toStation ?: return

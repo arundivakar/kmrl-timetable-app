@@ -5,6 +5,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
@@ -28,6 +29,10 @@ fun TodayScreen(
     val uiState by viewModel.uiState.collectAsState()
     val stations by viewModel.stations.collectAsState()
     val currentTime by viewModel.currentTime.collectAsState()
+
+    LaunchedEffect(Unit) {
+        viewModel.refreshUpcomingTrains()
+    }
 
     Column(modifier = Modifier.fillMaxSize()) {
         HeaderBlock(

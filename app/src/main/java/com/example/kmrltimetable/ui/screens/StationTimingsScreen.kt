@@ -58,6 +58,10 @@ fun StationTimingsScreen(
 
     var showStationPicker by remember { mutableStateOf(false) }
 
+    LaunchedEffect(uiState.selectedStation, uiState.isTomorrow) {
+        viewModel.refreshTimings()
+    }
+
     Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
 
         // ── Gradient Header ──────────────────────────────────────────────────
