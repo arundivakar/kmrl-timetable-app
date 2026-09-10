@@ -241,15 +241,70 @@ fun TrainSearchResultsScreen(
             
             Spacer(modifier = Modifier.height(16.dp))
 
-            val validTrains = if (isToday) {
+            var showAllTrainsToday by remember(selectedDate) { mutableStateOf(false) }
+
+            // Filter toggle for Today: UPCOMING vs ALL TRAINS
+            if (isToday && trains.isNotEmpty()) {
+                Row(
+                    modifier = Modifier.padding(horizontal = 16.dp),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    val upcomingCount = trains.count { isTrainValidUpcoming(it.departureTime, currentTime) }
+                    FilterChip(
+                        selected = !showAllTrainsToday,
+                        onClick = { showAllTrainsToday = false },
+                        label = { Text("UPCOMING ($upcomingCount)", fontSize = 12.sp) },
+                        colors = FilterChipDefaults.filterChipColors(
+                            selectedContainerColor = KmrlTeal,
+                            selectedLabelColor = Color.White,
+                            containerColor = MaterialTheme.colorScheme.surface,
+                            labelColor = MaterialTheme.colorScheme.onSurface
+                        )
+                    )
+                    FilterChip(
+                        selected = showAllTrainsToday,
+                        onClick = { showAllTrainsToday = true },
+                        label = { Text("ALL TRAINS (${trains.size})", fontSize = 12.sp) },
+                        colors = FilterChipDefaults.filterChipColors(
+                            selectedContainerColor = KmrlTeal,
+                            selectedLabelColor = Color.White,
+                            containerColor = MaterialTheme.colorScheme.surface,
+                            labelColor = MaterialTheme.colorScheme.onSurface
+                        )
+                    )
+                }
+                Spacer(modifier = Modifier.height(10.dp))
+            }
+
+            val validTrains = if (isToday && !showAllTrainsToday) {
                 trains.filter { isTrainValidUpcoming(it.departureTime, currentTime) }
             } else {
                 trains
             }
 
             if (validTrains.isEmpty()) {
-                if (isToday) {
-                    EmptyState("No trains available", "All trains have departed for today.")
+                if (isToday && trains.isNotEmpty()) {
+                    Column(
+                        modifier = Modifier.fillMaxWidth().padding(32.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.Center
+                    ) {
+                        Icon(Icons.Outlined.Schedule, contentDescription = null, tint = MaterialTheme.colorScheme.outlineVariant, modifier = Modifier.size(52.dp))
+                        Spacer(modifier = Modifier.height(12.dp))
+                        Text("All trains have departed for today", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onBackground)
+                        Spacer(modifier = Modifier.height(6.dp))
+                        Text("All ${trains.size} scheduled services have finished running for today.", fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant, textAlign = TextAlign.Center)
+                        Spacer(modifier = Modifier.height(16.dp))
+                        Button(
+                            onClick = { showAllTrainsToday = true },
+                            colors = ButtonDefaults.buttonColors(containerColor = KmrlTeal),
+                            shape = RoundedCornerShape(8.dp)
+                        ) {
+                            Text("VIEW ALL TODAY'S TRAINS (${trains.size})", fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                        }
+                    }
+                } else if (isToday) {
+                    EmptyState("No trains available", "No trains scheduled for this route today.")
                 } else {
                     EmptyState("No trains found", "No trains scheduled for ${dateFormat.format(selectedDate)}.")
                 }

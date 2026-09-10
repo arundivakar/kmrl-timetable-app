@@ -58,10 +58,10 @@ object AppUpdateManager {
                     @Suppress("DEPRECATION")
                     context.packageManager.getPackageInfo(context.packageName, 0)
                 }
-                packageInfo.versionName ?: "5.0.6"
+                packageInfo.versionName ?: "5.0.7"
             }
         } catch (e: Exception) {
-            "5.0.6"
+            "5.0.7"
         }
     }
 

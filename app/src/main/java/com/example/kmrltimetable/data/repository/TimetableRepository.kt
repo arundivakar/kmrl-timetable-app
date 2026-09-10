@@ -45,7 +45,9 @@ class TimetableRepository(
                 ?: return@withContext Pair("Unknown", emptyList()) // Fallback if no default found
         }
         
-        val timetable = dao.getTimetableByName(timetableName) ?: return@withContext Pair(timetableName, emptyList())
+        val timetable = dao.getTimetableByName(timetableName)
+            ?: dao.getAllTimetables().maxByOrNull { it.id }
+            ?: return@withContext Pair(timetableName, emptyList())
         
         // 2. Query trains
         val timeFormat = SimpleDateFormat("HH:mm:ss", Locale.US)
@@ -59,7 +61,7 @@ class TimetableRepository(
             timeStr = timeStr,
             limit = limit
         )
-        return@withContext Pair(timetableName, results)
+        return@withContext Pair(timetable.name, results)
     }
 
     /** 
@@ -85,6 +87,7 @@ class TimetableRepository(
         }
 
         val timetable = dao.getTimetableByName(timetableName)
+            ?: dao.getAllTimetables().maxByOrNull { it.id }
             ?: return@withContext Triple(timetableName, emptyList(), emptyList())
 
         val all = dao.getStationTimings(timetable.id, stationId)
