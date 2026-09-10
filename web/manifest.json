@@ -1,0 +1,30 @@
+{
+  "name": "KMRL Train Finder",
+  "short_name": "KMRL Metro",
+  "description": "Kochi Metro Rail (KMRL) Timetable, Station Timings & Live Train Finder",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait-primary",
+  "background_color": "#004D40",
+  "theme_color": "#00838F",
+  "icons": [
+    {
+      "src": "icons/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "icons/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "icons/apple-touch-icon.png",
+      "sizes": "180x180",
+      "type": "image/png"
+    }
+  ]
+}
