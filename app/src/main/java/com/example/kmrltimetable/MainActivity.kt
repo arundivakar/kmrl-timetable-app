@@ -93,9 +93,20 @@ fun MainScreen(
     var logoTapCount by remember { mutableIntStateOf(0) }
     var searchResultMode by remember { mutableStateOf(false) }
     var showAboutDialog by remember { mutableStateOf(false) }
+    var updateInfoToShow by remember { mutableStateOf<com.example.kmrltimetable.data.remote.AppUpdateInfo?>(null) }
+
+    val context = androidx.compose.ui.platform.LocalContext.current
+
+    // Auto-check for updates on launch
+    LaunchedEffect(Unit) {
+        val info = com.example.kmrltimetable.data.remote.AppUpdateManager.checkForUpdate(context)
+        if (info != null && info.isUpdateAvailable && com.example.kmrltimetable.data.remote.AppUpdateManager.shouldPromptForUpdate(context, info.latestVersion)) {
+            updateInfoToShow = info
+        }
+    }
 
     // ViewModels — created lazily with access to the shared repository/DAO
-    val app = androidx.compose.ui.platform.LocalContext.current.applicationContext as KMRLApplication
+    val app = context.applicationContext as KMRLApplication
     val adminViewModel: AdminViewModel = viewModel(
         factory = object : androidx.lifecycle.ViewModelProvider.Factory {
             override fun <T : androidx.lifecycle.ViewModel> create(modelClass: Class<T>): T {
@@ -226,7 +237,23 @@ fun MainScreen(
         AboutAppDialog(
             isDarkMode = isDarkMode,
             onDismiss = { showAboutDialog = false },
-            onThemeToggle = onThemeToggle
+            onThemeToggle = onThemeToggle,
+            onShowUpdate = { info ->
+                updateInfoToShow = info
+            }
+        )
+    }
+
+    updateInfoToShow?.let { info ->
+        com.example.kmrltimetable.ui.components.UpdateAvailableDialog(
+            updateInfo = info,
+            onDismiss = {
+                com.example.kmrltimetable.data.remote.AppUpdateManager.dismissUpdate(context, info.latestVersion)
+                updateInfoToShow = null
+            },
+            onUpdateClick = {
+                updateInfoToShow = null
+            }
         )
     }
 }

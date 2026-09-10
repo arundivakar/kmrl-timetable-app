@@ -1,5 +1,6 @@
 package com.example.kmrltimetable.ui.screens
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -8,6 +9,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.ui.draw.alpha
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.DarkMode
 import androidx.compose.material.icons.filled.KeyboardArrowDown
@@ -167,6 +169,7 @@ fun StationTimingsScreen(
 
                 DirectionSegmentedControl(
                     selected = uiState.dirFilter,
+                    stationCode = uiState.selectedStation?.code,
                     onSelect = { viewModel.setDirectionFilter(it) }
                 )
 
@@ -197,8 +200,8 @@ fun StationTimingsScreen(
                 val isAluva = uiState.selectedStation?.code == "ALVA"
                 val isTpht  = uiState.selectedStation?.code == "TPHT"
 
-                val showAluva = !isAluva && uiState.dirFilter == DirectionFilter.TO_ALUVA
-                val showTpht  = !isTpht  && uiState.dirFilter == DirectionFilter.TO_TPHT
+                val showAluva = uiState.dirFilter == DirectionFilter.TO_ALUVA
+                val showTpht  = uiState.dirFilter == DirectionFilter.TO_TPHT
 
                 val aluvaEmpty = !showAluva || aluvaList.isEmpty()
                 val tphtEmpty  = !showTpht  || tphtList.isEmpty()
@@ -211,18 +214,23 @@ fun StationTimingsScreen(
                         contentPadding = PaddingValues(bottom = 24.dp)
                     ) {
                         if (showAluva) {
+                            val isArrival = isAluva
+                            val sectionTitle = if (isAluva) "ARRIVALS AT ALUVA" else "TOWARDS ALUVA"
+                            val dirLabel = if (isAluva) "Arrival at Aluva" else "Towards Aluva"
+
                             item {
-                                DirectionSectionHeader("TOWARDS ALUVA", aluvaList.size, KmrlTeal)
+                                DirectionSectionHeader(sectionTitle, aluvaList.size, KmrlTeal)
                             }
                             if (aluvaList.isEmpty()) {
-                                item { NoTrainsInDirection("Aluva") }
+                                item { NoTrainsInDirection(if (isAluva) "No upcoming arrivals at Aluva" else "No upcoming trains towards Aluva") }
                             } else {
                                 item {
                                     NextTrainStationCard(
                                         train = aluvaList.first(),
-                                        dirLabel = "Towards Aluva",
+                                        dirLabel = dirLabel,
                                         currentTime = currentTime,
-                                        isTomorrow = uiState.isTomorrow
+                                        isTomorrow = uiState.isTomorrow,
+                                        isArrival = isArrival
                                     )
                                 }
                                 if (aluvaList.size > 1) {
@@ -230,10 +238,11 @@ fun StationTimingsScreen(
                                     itemsIndexed(aluvaList.drop(1)) { idx, train ->
                                         StationTrainRow(
                                             train = train,
-                                            dirLabel = "Towards Aluva",
+                                            dirLabel = dirLabel,
                                             currentTime = currentTime,
                                             isTomorrow = uiState.isTomorrow,
-                                            accent = if (idx % 2 == 0) KmrlTeal else KmrlLime
+                                            accent = if (idx % 2 == 0) KmrlTeal else KmrlLime,
+                                            isArrival = isArrival
                                         )
                                     }
                                 }
@@ -241,18 +250,23 @@ fun StationTimingsScreen(
                         }
 
                         if (showTpht) {
+                            val isArrival = isTpht
+                            val sectionTitle = if (isTpht) "ARRIVALS AT TPHT" else "TOWARDS TPHT"
+                            val dirLabel = if (isTpht) "Arrival at TPHT" else "Towards TPHT"
+
                             item {
-                                DirectionSectionHeader("TOWARDS TPHT", tphtList.size, KmrlLime)
+                                DirectionSectionHeader(sectionTitle, tphtList.size, KmrlLime)
                             }
                             if (tphtList.isEmpty()) {
-                                item { NoTrainsInDirection("TPHT") }
+                                item { NoTrainsInDirection(if (isTpht) "No upcoming arrivals at TPHT" else "No upcoming trains towards TPHT") }
                             } else {
                                 item {
                                     NextTrainStationCard(
                                         train = tphtList.first(),
-                                        dirLabel = "Towards TPHT",
+                                        dirLabel = dirLabel,
                                         currentTime = currentTime,
-                                        isTomorrow = uiState.isTomorrow
+                                        isTomorrow = uiState.isTomorrow,
+                                        isArrival = isArrival
                                     )
                                 }
                                 if (tphtList.size > 1) {
@@ -260,10 +274,11 @@ fun StationTimingsScreen(
                                     itemsIndexed(tphtList.drop(1)) { idx, train ->
                                         StationTrainRow(
                                             train = train,
-                                            dirLabel = "Towards TPHT",
+                                            dirLabel = dirLabel,
                                             currentTime = currentTime,
                                             isTomorrow = uiState.isTomorrow,
-                                            accent = if (idx % 2 == 0) KmrlLime else KmrlTeal
+                                            accent = if (idx % 2 == 0) KmrlLime else KmrlTeal,
+                                            isArrival = isArrival
                                         )
                                     }
                                 }
@@ -386,16 +401,27 @@ private fun NextTrainStationCard(
     train: StationTrainResult,
     dirLabel: String,
     currentTime: Date,
-    isTomorrow: Boolean
+    isTomorrow: Boolean,
+    isArrival: Boolean = false
 ) {
     val millis   = if (isTomorrow) 1L else getCountdownMillis(train.departureTime, currentTime)
-    val isDeparted = !isTomorrow && millis <= 0
+    val isPassed = !isTomorrow && millis <= 0
     val countdown = if (isTomorrow) "Tomorrow" else getCountdownFormattedMins(train.departureTime, currentTime)
 
+    val cal = Calendar.getInstance().apply { time = currentTime }
+    val isSunday = cal.get(Calendar.DAY_OF_WEEK) == Calendar.SUNDAY
+    val isRev = isRevenueService(train.terminalDepartureTime, train.departureTime, isSunday)
+
+    val cardColor = if (!isRev) Color(0xFF455A64) else KmrlTeal
+    val cardAlpha = if (!isRev) 0.88f else 1f
+
     Card(
-        colors = CardDefaults.cardColors(containerColor = KmrlTeal),
+        colors = CardDefaults.cardColors(containerColor = cardColor),
         shape = RoundedCornerShape(12.dp),
-        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp),
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp, vertical = 4.dp)
+            .alpha(cardAlpha),
         elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
     ) {
         Row(modifier = Modifier.padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -408,14 +434,14 @@ private fun NextTrainStationCard(
 
             Spacer(Modifier.width(14.dp))
 
-            val cal = Calendar.getInstance().apply { time = currentTime }
-            val isSunday = cal.get(Calendar.DAY_OF_WEEK) == Calendar.SUNDAY
-            val isRev = isRevenueService(train.terminalDepartureTime, train.departureTime, isSunday)
-
             Column(modifier = Modifier.weight(1f)) {
                 Surface(shape = RoundedCornerShape(6.dp), color = Color.White.copy(alpha = 0.2f)) {
                     Text(
-                        if (isTomorrow) "FIRST TRAIN" else "NEXT TRAIN",
+                        if (isTomorrow) {
+                            if (isArrival) "FIRST ARRIVAL" else "FIRST TRAIN"
+                        } else {
+                            if (isArrival) "NEXT ARRIVAL" else "NEXT TRAIN"
+                        },
                         modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp),
                         color = Color.White,
                         fontSize = 9.sp,
@@ -427,10 +453,22 @@ private fun NextTrainStationCard(
                 Text("Train ${train.trainNo}", color = Color.White.copy(alpha = 0.85f), fontSize = 11.sp, fontWeight = FontWeight.SemiBold)
                 Text(train.departureTime, color = Color.White, fontSize = 24.sp, fontWeight = FontWeight.Bold)
                 Text(dirLabel, color = Color.White.copy(alpha = 0.75f), fontSize = 11.sp)
-                
+
                 if (!isRev) {
                     Spacer(Modifier.height(4.dp))
-                    Text("NON-REVENUE", color = Color.White.copy(alpha = 0.8f), fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                    Surface(
+                        shape = RoundedCornerShape(4.dp),
+                        color = Color(0xFFFFB300).copy(alpha = 0.3f)
+                    ) {
+                        Text(
+                            "NON-REVENUE SERVICE",
+                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
+                            color = Color(0xFFFFE082),
+                            fontSize = 9.sp,
+                            fontWeight = FontWeight.Bold,
+                            letterSpacing = 0.5.sp
+                        )
+                    }
                 }
             }
 
@@ -438,13 +476,23 @@ private fun NextTrainStationCard(
                 Surface(shape = RoundedCornerShape(8.dp), color = Color.White.copy(alpha = 0.2f)) {
                     Text("TOMORROW", modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp), color = Color.White, fontWeight = FontWeight.Bold, fontSize = 11.sp)
                 }
-            } else if (isDeparted) {
+            } else if (isPassed) {
                 Surface(shape = RoundedCornerShape(8.dp), color = Color.White.copy(alpha = 0.2f)) {
-                    Text("DEPARTED", modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp), color = Color.White, fontWeight = FontWeight.Bold, fontSize = 11.sp)
+                    Text(
+                        if (isArrival) "ARRIVED" else "DEPARTED",
+                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp),
+                        color = Color.White,
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 11.sp
+                    )
                 }
             } else {
                 Column(horizontalAlignment = Alignment.End) {
-                    Text("IN", color = Color.White.copy(alpha = 0.7f), fontSize = 10.sp)
+                    Text(
+                        if (isArrival) "ARRIVES IN" else "IN",
+                        color = Color.White.copy(alpha = 0.7f),
+                        fontSize = 10.sp
+                    )
                     Text(countdown, color = Color.White, fontWeight = FontWeight.Bold, fontSize = 18.sp)
                 }
             }
@@ -459,48 +507,112 @@ private fun StationTrainRow(
     dirLabel: String,
     currentTime: Date,
     isTomorrow: Boolean,
-    accent: Color
+    accent: Color,
+    isArrival: Boolean = false
 ) {
     val millis    = if (isTomorrow) 1L else getCountdownMillis(train.departureTime, currentTime)
-    val isDeparted = !isTomorrow && millis <= 0
+    val isPassed = !isTomorrow && millis <= 0
     val countdown = if (isTomorrow) "Tomorrow" else getCountdownFormattedMins(train.departureTime, currentTime)
 
     val cal = Calendar.getInstance().apply { time = currentTime }
     val isSunday = cal.get(Calendar.DAY_OF_WEEK) == Calendar.SUNDAY
     val isRev = isRevenueService(train.terminalDepartureTime, train.departureTime, isSunday)
 
+    val containerBg = if (!isRev) {
+        MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
+    } else {
+        MaterialTheme.colorScheme.surface
+    }
+    val cardAlpha = if (!isRev) 0.82f else 1.0f
+    val barColor = if (!isRev) {
+        Color(0xFF78909C)
+    } else if (isPassed) {
+        MaterialTheme.colorScheme.outlineVariant
+    } else {
+        accent
+    }
+
     Card(
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        colors = CardDefaults.cardColors(containerColor = containerBg),
         shape = RoundedCornerShape(8.dp),
-        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp).border(1.dp, MaterialTheme.colorScheme.outlineVariant, RoundedCornerShape(8.dp)),
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp, vertical = 4.dp)
+            .alpha(cardAlpha)
+            .border(
+                1.dp,
+                if (!isRev) MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f) else MaterialTheme.colorScheme.outlineVariant,
+                RoundedCornerShape(8.dp)
+            ),
         elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
     ) {
         Row(modifier = Modifier.fillMaxWidth().height(IntrinsicSize.Min)) {
-            Box(modifier = Modifier.width(5.dp).fillMaxHeight().background(if (isDeparted) MaterialTheme.colorScheme.outlineVariant else accent))
+            Box(modifier = Modifier.width(5.dp).fillMaxHeight().background(barColor))
 
             Row(
                 modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 10.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Icon(Icons.Outlined.DirectionsSubway, contentDescription = null, tint = if (isDeparted) MaterialTheme.colorScheme.onSurfaceVariant else accent, modifier = Modifier.size(22.dp))
+                Icon(
+                    Icons.Outlined.DirectionsSubway,
+                    contentDescription = null,
+                    tint = if (!isRev) Color(0xFF78909C) else if (isPassed) MaterialTheme.colorScheme.onSurfaceVariant else accent,
+                    modifier = Modifier.size(22.dp)
+                )
                 Spacer(Modifier.width(12.dp))
 
                 Column(modifier = Modifier.weight(1f)) {
-                    Text("Train ${train.trainNo}", fontSize = 11.sp, color = if (isDeparted) MaterialTheme.colorScheme.onSurfaceVariant else KmrlTeal, fontWeight = FontWeight.Bold)
-                    Text(train.departureTime, fontSize = 18.sp, fontWeight = FontWeight.Bold, color = if (isDeparted) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.onSurface)
+                    Text(
+                        "Train ${train.trainNo}",
+                        fontSize = 11.sp,
+                        color = if (!isRev) MaterialTheme.colorScheme.onSurfaceVariant else if (isPassed) MaterialTheme.colorScheme.onSurfaceVariant else KmrlTeal,
+                        fontWeight = FontWeight.Bold
+                    )
+                    Text(
+                        train.departureTime,
+                        fontSize = 18.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = if (isPassed) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.onSurface
+                    )
                     Text(dirLabel, fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     if (!isRev) {
-                        Spacer(Modifier.height(2.dp))
-                        Text("NON-REVENUE", color = if (isDeparted) MaterialTheme.colorScheme.onSurfaceVariant else KmrlTeal, fontSize = 9.sp, fontWeight = FontWeight.Bold)
+                        Spacer(Modifier.height(3.dp))
+                        Surface(
+                            shape = RoundedCornerShape(4.dp),
+                            color = Color(0xFFFFB300).copy(alpha = 0.18f)
+                        ) {
+                            Text(
+                                "NON-REVENUE",
+                                modifier = Modifier.padding(horizontal = 5.dp, vertical = 1.dp),
+                                color = Color(0xFFE65100),
+                                fontSize = 9.sp,
+                                fontWeight = FontWeight.Bold,
+                                letterSpacing = 0.4.sp
+                            )
+                        }
                     }
                 }
 
-                if (isDeparted) {
-                    Text("DEPARTED", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant, fontWeight = FontWeight.Bold)
+                if (isPassed) {
+                    Text(
+                        if (isArrival) "ARRIVED" else "DEPARTED",
+                        fontSize = 11.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        fontWeight = FontWeight.Bold
+                    )
                 } else if (!isTomorrow) {
                     Column(horizontalAlignment = Alignment.End) {
-                        Text("IN", fontSize = 9.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                        Text(countdown, fontWeight = FontWeight.Bold, color = accent, fontSize = 14.sp)
+                        Text(
+                            if (isArrival) "ARRIVES IN" else "IN",
+                            fontSize = 9.sp,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        Text(
+                            countdown,
+                            fontWeight = FontWeight.Bold,
+                            color = if (!isRev) Color(0xFF78909C) else accent,
+                            fontSize = 14.sp
+                        )
                     }
                 }
             }
@@ -511,7 +623,22 @@ private fun StationTrainRow(
 // Direction segmented button row
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun DirectionSegmentedControl(selected: DirectionFilter, onSelect: (DirectionFilter) -> Unit) {
+private fun DirectionSegmentedControl(
+    selected: DirectionFilter,
+    stationCode: String? = null,
+    onSelect: (DirectionFilter) -> Unit
+) {
+    val aluvaLabel = when (stationCode) {
+        "ALVA" -> "ARRIVALS (AT ALVA)"
+        "TPHT" -> "DEPARTURES (TO ALUVA)"
+        else   -> "→ ALUVA"
+    }
+    val tphtLabel = when (stationCode) {
+        "ALVA" -> "DEPARTURES (TO TPHT)"
+        "TPHT" -> "ARRIVALS (AT TPHT)"
+        else   -> "→ TPHT"
+    }
+
     SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
         SegmentedButton(
             selected = selected == DirectionFilter.TO_ALUVA,
@@ -524,7 +651,7 @@ private fun DirectionSegmentedControl(selected: DirectionFilter, onSelect: (Dire
                 inactiveContainerColor = MaterialTheme.colorScheme.surface,
                 inactiveContentColor = MaterialTheme.colorScheme.onSurface
             )
-        ) { Text("→ ALUVA", fontSize = 12.sp, fontWeight = FontWeight.Bold) }
+        ) { Text(aluvaLabel, fontSize = 11.sp, fontWeight = FontWeight.Bold) }
 
         SegmentedButton(
             selected = selected == DirectionFilter.TO_TPHT,
@@ -537,7 +664,7 @@ private fun DirectionSegmentedControl(selected: DirectionFilter, onSelect: (Dire
                 inactiveContainerColor = MaterialTheme.colorScheme.surface,
                 inactiveContentColor = MaterialTheme.colorScheme.onSurface
             )
-        ) { Text("→ TPHT", fontSize = 12.sp, fontWeight = FontWeight.Bold) }
+        ) { Text(tphtLabel, fontSize = 11.sp, fontWeight = FontWeight.Bold) }
     }
 }
 
@@ -578,13 +705,18 @@ private fun NoTrainsFound() {
 }
 
 @Composable
-private fun NoTrainsInDirection(direction: String) {
+private fun NoTrainsInDirection(directionOrMessage: String) {
+    val message = if (directionOrMessage.startsWith("No ")) {
+        directionOrMessage
+    } else {
+        "No upcoming trains towards $directionOrMessage"
+    }
     Box(
         modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp)
             .background(MaterialTheme.colorScheme.surface, RoundedCornerShape(8.dp))
             .border(1.dp, MaterialTheme.colorScheme.outlineVariant, RoundedCornerShape(8.dp)).padding(16.dp),
         contentAlignment = Alignment.Center
     ) {
-        Text("No upcoming trains towards $direction", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant, textAlign = TextAlign.Center)
+        Text(message, fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant, textAlign = TextAlign.Center)
     }
 }

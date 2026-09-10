@@ -4,6 +4,7 @@ import android.content.Context
 import androidx.room.Database
 import androidx.room.Room
 import androidx.room.RoomDatabase
+import com.example.kmrltimetable.BuildConfig
 import com.example.kmrltimetable.data.local.entity.DayDefaultEntity
 import com.example.kmrltimetable.data.local.entity.ScheduleOverrideEntity
 import com.example.kmrltimetable.data.local.entity.StationEntity
@@ -35,13 +36,20 @@ abstract class AppDatabase : RoomDatabase() {
         private var INSTANCE: AppDatabase? = null
 
         private const val DB_NAME = "kmrl_timetable.db"
+        private const val PREFS_NAME = "kmrl_database_prefs"
+        private const val KEY_COPIED_VERSION = "bundled_db_version"
 
         fun getDatabase(context: Context): AppDatabase {
             return INSTANCE ?: synchronized(this) {
-                // Ensure the pre-packaged DB is copied if it doesn't exist
                 val dbFile = context.getDatabasePath(DB_NAME)
-                if (!dbFile.exists()) {
+                val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+                val lastVersion = prefs.getInt(KEY_COPIED_VERSION, -1)
+                val currentVersion = BuildConfig.VERSION_CODE
+
+                // Copy pre-packaged DB if it doesn't exist or if app was updated
+                if (!dbFile.exists() || lastVersion < currentVersion) {
                     copyDatabaseFromAssets(context)
+                    prefs.edit().putInt(KEY_COPIED_VERSION, currentVersion).apply()
                 }
 
                 val instance = Room.databaseBuilder(

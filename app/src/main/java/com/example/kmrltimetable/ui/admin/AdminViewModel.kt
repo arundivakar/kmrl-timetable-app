@@ -3,6 +3,7 @@ package com.example.kmrltimetable.ui.admin
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.kmrltimetable.data.local.TimetableDao
+import com.example.kmrltimetable.data.local.entity.DayDefaultEntity
 import com.example.kmrltimetable.data.local.entity.ScheduleOverrideEntity
 import com.example.kmrltimetable.data.local.entity.TimetableEntity
 import com.example.kmrltimetable.data.remote.FirebaseManager
@@ -28,7 +29,12 @@ data class AdminUiState(
     val dayDefaults: Map<Int, String> = emptyMap(),           // dayOfWeek -> timetableName
     val lastSyncTime: String = "",
     val configVersion: Long = 0
-)
+) {
+    val weekdayDefault: String? get() = dayDefaults[0] ?: dayDefaults[1] ?: dayDefaults[2] ?: dayDefaults[3] ?: dayDefaults[4]
+    val weekendDefault: String? get() = dayDefaults[6] ?: dayDefaults[5]
+    val saturdayDefault: String? get() = dayDefaults[5]
+    val sundayDefault: String? get() = dayDefaults[6]
+}
 
 class AdminViewModel(private val dao: TimetableDao) : ViewModel() {
 
@@ -81,7 +87,14 @@ class AdminViewModel(private val dao: TimetableDao) : ViewModel() {
 
                 // Load remote assignments
                 val assignments = FirebaseManager.fetchDateAssignments()
-                val dayDefaults = FirebaseManager.fetchDayDefaults()
+                val remoteDefaults = FirebaseManager.fetchDayDefaults()
+                val dayDefaults = if (remoteDefaults.isNotEmpty()) {
+                    remoteDefaults
+                } else {
+                    withContext(Dispatchers.IO) {
+                        dao.getDayDefaults().associate { it.dayOfWeek to it.timetableName }
+                    }
+                }
                 val config      = FirebaseManager.fetchConfig()
 
                 // Load last sync time from local metadata
@@ -90,17 +103,82 @@ class AdminViewModel(private val dao: TimetableDao) : ViewModel() {
                 }
 
                 _uiState.value = _uiState.value.copy(
-                    isLoading      = false,
-                    timetables     = timetables,
+                    isLoading       = false,
+                    timetables      = timetables,
                     dateAssignments = assignments,
-                    dayDefaults    = dayDefaults,
-                    lastSyncTime   = lastSync,
-                    configVersion  = config.version
+                    dayDefaults     = dayDefaults,
+                    lastSyncTime    = lastSync,
+                    configVersion   = config.version
                 )
             } catch (e: Exception) {
                 _uiState.value = _uiState.value.copy(
                     isLoading = false,
                     error = "Failed to load data: ${e.message}"
+                )
+            }
+        }
+    }
+
+    // -------------------------------------------------------------------------
+    // Default Timetables Management (Weekday & Weekend)
+    // -------------------------------------------------------------------------
+
+    fun setDefaultWeekdayTimetable(timetableName: String) {
+        val adminEmail = FirebaseManager.currentUid() ?: return
+        val days = listOf(0, 1, 2, 3, 4) // Monday to Friday
+        val updates = days.associateWith { timetableName }
+        viewModelScope.launch {
+            _uiState.value = _uiState.value.copy(isLoading = true, error = null)
+            try {
+                FirebaseManager.setDayDefaults(updates, adminEmail)
+                withContext(Dispatchers.IO) {
+                    dao.insertDayDefaults(days.map { d ->
+                        DayDefaultEntity(dayOfWeek = d, timetableName = timetableName)
+                    })
+                }
+                val newDefaults = _uiState.value.dayDefaults.toMutableMap().apply {
+                    days.forEach { put(it, timetableName) }
+                }
+                _uiState.value = _uiState.value.copy(
+                    isLoading = false,
+                    dayDefaults = newDefaults,
+                    successMessage = "✅ Default Weekday (Mon–Fri) set to $timetableName"
+                )
+            } catch (e: Exception) {
+                _uiState.value = _uiState.value.copy(
+                    isLoading = false,
+                    error = "Failed to update weekday default: ${e.message}"
+                )
+            }
+        }
+    }
+
+    fun setDefaultWeekendTimetable(timetableName: String, includeSaturday: Boolean = true) {
+        val adminEmail = FirebaseManager.currentUid() ?: return
+        val days = if (includeSaturday) listOf(5, 6) else listOf(6) // 5=Saturday, 6=Sunday
+        val updates = days.associateWith { timetableName }
+        viewModelScope.launch {
+            _uiState.value = _uiState.value.copy(isLoading = true, error = null)
+            try {
+                FirebaseManager.setDayDefaults(updates, adminEmail)
+                withContext(Dispatchers.IO) {
+                    dao.insertDayDefaults(days.map { d ->
+                        DayDefaultEntity(dayOfWeek = d, timetableName = timetableName)
+                    })
+                }
+                val newDefaults = _uiState.value.dayDefaults.toMutableMap().apply {
+                    days.forEach { put(it, timetableName) }
+                }
+                val label = if (includeSaturday) "Weekend (Sat & Sun)" else "Sunday"
+                _uiState.value = _uiState.value.copy(
+                    isLoading = false,
+                    dayDefaults = newDefaults,
+                    successMessage = "✅ Default $label set to $timetableName"
+                )
+            } catch (e: Exception) {
+                _uiState.value = _uiState.value.copy(
+                    isLoading = false,
+                    error = "Failed to update weekend default: ${e.message}"
                 )
             }
         }

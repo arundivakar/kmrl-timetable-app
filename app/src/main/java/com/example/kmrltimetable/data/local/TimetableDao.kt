@@ -45,6 +45,9 @@ interface TimetableDao {
     @Query("UPDATE day_defaults SET timetable_name = :timetableName WHERE day_of_week = :dayOfWeek")
     fun updateDayDefault(dayOfWeek: Int, timetableName: String)
 
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    fun insertDayDefaults(defaults: List<DayDefaultEntity>)
+
     // ------ Schedule overrides (date-specific assignments) ------
 
     @Query("SELECT * FROM schedule_overrides")

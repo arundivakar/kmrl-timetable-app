@@ -107,6 +107,19 @@ object FirebaseManager {
         return result
     }
 
+    /**
+     * Admin: update day-of-week defaults in Firebase.
+     * Also bumps config version so all clients know to re-sync.
+     */
+    suspend fun setDayDefaults(defaults: Map<Int, String>, adminEmail: String) {
+        val updates = mutableMapOf<String, Any>()
+        defaults.forEach { (day, ttName) ->
+            updates["day_defaults/$day"] = ttName
+        }
+        db.reference.updateChildren(updates).await()
+        bumpConfigVersion(adminEmail)
+    }
+
     // -----------------------------------------------------------------------
     // Timetable registry (list of available timetables)
     // -----------------------------------------------------------------------

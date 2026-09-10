@@ -17,10 +17,11 @@ import androidx.compose.material.icons.outlined.DirectionsSubway
 import androidx.compose.material.icons.outlined.Info
 import androidx.compose.material.icons.outlined.Schedule
 import androidx.compose.material3.*
-import androidx.compose.runtime.Composable
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import kotlinx.coroutines.launch
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
@@ -142,8 +143,16 @@ fun TimetableStatusCard(timetableName: String) {
 fun AboutAppDialog(
     isDarkMode: Boolean,
     onDismiss: () -> Unit,
-    onThemeToggle: () -> Unit
+    onThemeToggle: () -> Unit,
+    onShowUpdate: (com.example.kmrltimetable.data.remote.AppUpdateInfo) -> Unit = {}
 ) {
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val coroutineScope = androidx.compose.runtime.rememberCoroutineScope()
+    val currentVersion = remember { com.example.kmrltimetable.data.remote.AppUpdateManager.getCurrentVersionName(context) }
+    
+    var isCheckingUpdate by remember { androidx.compose.runtime.mutableStateOf(false) }
+    var updateStatusMessage by remember { androidx.compose.runtime.mutableStateOf<String?>(null) }
+
     AlertDialog(
         onDismissRequest = onDismiss,
         containerColor = MaterialTheme.colorScheme.surface,
@@ -168,7 +177,7 @@ fun AboutAppDialog(
                         shape = RoundedCornerShape(4.dp)
                     ) {
                         Text(
-                            text = "v5.0.5 (Release)",
+                            text = "v$currentVersion (Release)",
                             color = KmrlTeal,
                             fontSize = 10.sp,
                             fontWeight = FontWeight.Bold,
@@ -201,10 +210,78 @@ fun AboutAppDialog(
                 InfoItemRow(
                     icon = Icons.Outlined.Info,
                     title = "App Features",
-                    subtitle = "Real-time Timings • Offline First • Revenue Service Filter"
+                    subtitle = "Real-time Timings • Offline First • Auto-Update Alerts"
                 )
 
                 HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+
+                // Check for Updates Row
+                Card(
+                    colors = CardDefaults.cardColors(
+                        containerColor = MaterialTheme.colorScheme.background
+                    ),
+                    shape = RoundedCornerShape(10.dp),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable(enabled = !isCheckingUpdate) {
+                            isCheckingUpdate = true
+                            updateStatusMessage = null
+                            coroutineScope.launch {
+                                val info = com.example.kmrltimetable.data.remote.AppUpdateManager.checkForUpdate(context)
+                                isCheckingUpdate = false
+                                if (info != null && info.isUpdateAvailable) {
+                                    onDismiss()
+                                    onShowUpdate(info)
+                                } else if (info != null) {
+                                    updateStatusMessage = "You're on the latest version (v${info.currentVersion})"
+                                } else {
+                                    updateStatusMessage = "Could not reach update server. Check internet."
+                                }
+                            }
+                        }
+                ) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth().padding(12.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            modifier = Modifier.weight(1f, fill = false)
+                        ) {
+                            if (isCheckingUpdate) {
+                                CircularProgressIndicator(
+                                    modifier = Modifier.size(16.dp),
+                                    strokeWidth = 2.dp,
+                                    color = KmrlTeal
+                                )
+                                Text(
+                                    "Checking for updates...",
+                                    fontSize = 13.sp,
+                                    fontWeight = FontWeight.Medium,
+                                    color = MaterialTheme.colorScheme.onSurface
+                                )
+                            } else {
+                                Text(
+                                    text = updateStatusMessage ?: "Check for Updates",
+                                    fontSize = 13.sp,
+                                    fontWeight = FontWeight.Medium,
+                                    color = if (updateStatusMessage != null) KmrlTeal else MaterialTheme.colorScheme.onSurface
+                                )
+                            }
+                        }
+
+                        if (!isCheckingUpdate && updateStatusMessage == null) {
+                            Text(
+                                "Check",
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = KmrlTeal
+                            )
+                        }
+                    }
+                }
 
                 // Theme Switch Row
                 Card(

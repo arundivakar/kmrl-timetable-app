@@ -1,5 +1,6 @@
 package com.example.kmrltimetable.ui.components
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.*
@@ -13,6 +14,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
@@ -39,11 +41,16 @@ fun NextTrainCard(train: JourneyResult, currentTime: Date, isTomorrow: Boolean) 
     val isSunday = cal.get(Calendar.DAY_OF_WEEK) == Calendar.SUNDAY
     val isRev = isRevenueService(train.terminalDepartureTime, train.departureTime, isSunday)
 
+    val containerBg = if (isRev) KmrlTeal else Color(0xFF455A64)
+
     Card(
-        colors = CardDefaults.cardColors(containerColor = KmrlTeal),
+        colors = CardDefaults.cardColors(containerColor = containerBg),
         shape = RoundedCornerShape(12.dp),
-        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
-        elevation = CardDefaults.cardElevation(defaultElevation = 6.dp)
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp)
+            .alpha(if (isRev) 1f else 0.85f),
+        elevation = CardDefaults.cardElevation(defaultElevation = if (isRev) 6.dp else 2.dp)
     ) {
         Row(modifier = Modifier.padding(12.dp), verticalAlignment = Alignment.Top) {
             
@@ -75,7 +82,20 @@ fun NextTrainCard(train: JourneyResult, currentTime: Date, isTomorrow: Boolean) 
                 
                 if (!isRev) {
                     Spacer(modifier = Modifier.height(6.dp))
-                    Text("NON-REVENUE", fontSize = 10.sp, color = Color.White.copy(alpha = 0.8f), fontWeight = FontWeight.Bold, letterSpacing = 1.sp)
+                    Surface(
+                        shape = RoundedCornerShape(4.dp),
+                        color = Color(0xFFFFA000).copy(alpha = 0.25f),
+                        border = BorderStroke(1.dp, Color(0xFFFFA000).copy(alpha = 0.6f))
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                        ) {
+                            Box(modifier = Modifier.size(6.dp).background(Color(0xFFFFD54F), CircleShape))
+                            Spacer(Modifier.width(4.dp))
+                            Text("NON-REVENUE SERVICE", fontSize = 9.sp, color = Color(0xFFFFE082), fontWeight = FontWeight.Bold, letterSpacing = 0.8.sp)
+                        }
+                    }
                 }
                 
                 Spacer(modifier = Modifier.height(10.dp))
@@ -126,32 +146,50 @@ fun FollowingTrainRow(train: JourneyResult, currentTime: Date, isTomorrow: Boole
     val isSunday = cal.get(Calendar.DAY_OF_WEEK) == Calendar.SUNDAY
     val isRev = isRevenueService(train.terminalDepartureTime, train.departureTime, isSunday)
 
+    val cardBg = if (isRev) MaterialTheme.colorScheme.surface else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
+    val actualAccent = if (isRev) colorAccent else Color(0xFF78909C)
+
     Card(
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        colors = CardDefaults.cardColors(containerColor = cardBg),
         shape = RoundedCornerShape(8.dp),
-        modifier = Modifier.fillMaxWidth().border(1.dp, MaterialTheme.colorScheme.outlineVariant, RoundedCornerShape(8.dp)),
+        modifier = Modifier
+            .fillMaxWidth()
+            .alpha(if (isRev) 1f else 0.8f)
+            .border(
+                1.dp,
+                if (isRev) MaterialTheme.colorScheme.outlineVariant else Color(0xFF78909C).copy(alpha = 0.4f),
+                RoundedCornerShape(8.dp)
+            ),
         elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
     ) {
         Row(modifier = Modifier.fillMaxWidth().height(IntrinsicSize.Min)) {
             // Left Colored Border
-            Box(modifier = Modifier.width(6.dp).fillMaxHeight().background(colorAccent))
+            Box(modifier = Modifier.width(6.dp).fillMaxHeight().background(actualAccent))
             
             Row(modifier = Modifier.fillMaxWidth().padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
-                Icon(Icons.Outlined.DirectionsSubway, contentDescription = null, tint = colorAccent, modifier = Modifier.size(24.dp))
+                Icon(Icons.Outlined.DirectionsSubway, contentDescription = null, tint = actualAccent, modifier = Modifier.size(24.dp))
                 Spacer(modifier = Modifier.width(16.dp))
                 
                 Column(modifier = Modifier.weight(1f)) {
-                    Text("Train ${train.trainNo}", fontSize = 12.sp, color = KmrlTeal, fontWeight = FontWeight.Bold)
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text("Train ${train.trainNo}", fontSize = 12.sp, color = if (isRev) KmrlTeal else Color(0xFF546E7A), fontWeight = FontWeight.Bold)
+                        if (!isRev) {
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Surface(
+                                shape = RoundedCornerShape(4.dp),
+                                color = Color(0xFFFFA000).copy(alpha = 0.18f),
+                                border = BorderStroke(0.8.dp, Color(0xFFFFA000).copy(alpha = 0.5f))
+                            ) {
+                                Text("NON-REVENUE", modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp), fontSize = 8.sp, color = Color(0xFFE65100), fontWeight = FontWeight.Bold, letterSpacing = 0.4.sp)
+                            }
+                        }
+                    }
                     Spacer(modifier = Modifier.height(4.dp))
                     Row(verticalAlignment = Alignment.Bottom) {
                         Text(train.departureTime, fontWeight = FontWeight.Bold, fontSize = 16.sp, color = MaterialTheme.colorScheme.onSurface)
                         Text(" Departure", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(bottom = 2.dp, start = 4.dp))
                     }
                     Text("Arrival: ${train.arrivalTime}", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    if (!isRev) {
-                        Spacer(modifier = Modifier.height(2.dp))
-                        Text("NON-REVENUE", fontSize = 9.sp, color = MaterialTheme.colorScheme.onSurfaceVariant, fontWeight = FontWeight.Bold, letterSpacing = 0.5.sp)
-                    }
                 }
                 
                 if (!isTomorrow) {
@@ -164,7 +202,7 @@ fun FollowingTrainRow(train: JourneyResult, currentTime: Date, isTomorrow: Boole
                         if (isArrDeparted) {
                             Text("DEPARTED", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant, fontWeight = FontWeight.Bold)
                         } else {
-                            Text("IN $arrCountdown", fontSize = 12.sp, color = KmrlTeal, fontWeight = FontWeight.Bold)
+                            Text("IN $arrCountdown", fontSize = 12.sp, color = if (isRev) KmrlTeal else Color(0xFF546E7A), fontWeight = FontWeight.Bold)
                         }
                     }
                     Spacer(modifier = Modifier.width(8.dp))
@@ -182,25 +220,39 @@ fun FullTimetableRow(train: JourneyResult, colorAccent: Color, timetableDate: Da
     val cal = Calendar.getInstance().apply { time = timetableDate }
     val isSunday = cal.get(Calendar.DAY_OF_WEEK) == Calendar.SUNDAY
     val isRev = isRevenueService(train.terminalDepartureTime, train.departureTime, isSunday)
-    
+
+    val cardBg = if (isRev) MaterialTheme.colorScheme.surface else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
+    val actualAccent = if (isRev) colorAccent else Color(0xFF78909C)
+
     Card(
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        colors = CardDefaults.cardColors(containerColor = cardBg),
         shape = RoundedCornerShape(8.dp),
-        modifier = Modifier.fillMaxWidth().border(1.dp, MaterialTheme.colorScheme.outlineVariant, RoundedCornerShape(8.dp)),
+        modifier = Modifier
+            .fillMaxWidth()
+            .alpha(if (isRev) 1f else 0.8f)
+            .border(
+                1.dp,
+                if (isRev) MaterialTheme.colorScheme.outlineVariant else Color(0xFF78909C).copy(alpha = 0.4f),
+                RoundedCornerShape(8.dp)
+            ),
         elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
     ) {
         Row(modifier = Modifier.fillMaxWidth().height(IntrinsicSize.Min)) {
-            Box(modifier = Modifier.width(6.dp).fillMaxHeight().background(colorAccent))
+            Box(modifier = Modifier.width(6.dp).fillMaxHeight().background(actualAccent))
             
             Column(modifier = Modifier.fillMaxWidth().padding(12.dp)) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(Icons.Outlined.DirectionsSubway, contentDescription = null, tint = colorAccent, modifier = Modifier.size(20.dp))
+                    Icon(Icons.Outlined.DirectionsSubway, contentDescription = null, tint = actualAccent, modifier = Modifier.size(20.dp))
                     Spacer(modifier = Modifier.width(8.dp))
-                    Text("Train ${train.trainNo}", fontSize = 12.sp, color = KmrlTeal, fontWeight = FontWeight.Bold)
+                    Text("Train ${train.trainNo}", fontSize = 12.sp, color = if (isRev) KmrlTeal else Color(0xFF546E7A), fontWeight = FontWeight.Bold)
                     if (!isRev) {
                         Spacer(modifier = Modifier.width(8.dp))
-                        Surface(shape = RoundedCornerShape(4.dp), color = MaterialTheme.colorScheme.surfaceVariant) {
-                            Text("NON-REVENUE", modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp), fontSize = 8.sp, color = MaterialTheme.colorScheme.onSurfaceVariant, fontWeight = FontWeight.Bold)
+                        Surface(
+                            shape = RoundedCornerShape(4.dp),
+                            color = Color(0xFFFFA000).copy(alpha = 0.18f),
+                            border = BorderStroke(0.8.dp, Color(0xFFFFA000).copy(alpha = 0.5f))
+                        ) {
+                            Text("NON-REVENUE", modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp), fontSize = 8.sp, color = Color(0xFFE65100), fontWeight = FontWeight.Bold, letterSpacing = 0.4.sp)
                         }
                     }
                 }
