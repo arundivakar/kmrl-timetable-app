@@ -21,6 +21,32 @@ class TimetableRepository(
         return dao.getAllStations()
     }
 
+    fun getEffectiveTimetableNameForDate(date: Date): String {
+        val dateFormat = SimpleDateFormat("yyyy-MM-dd", Locale.US)
+        val dateStr = dateFormat.format(date)
+        
+        val override = dao.getOverrideForDate(dateStr)
+        if (override != null) {
+            return override.timetableName
+        }
+
+        val cal = Calendar.getInstance().apply { time = date }
+        // Calendar.DAY_OF_WEEK is 1-indexed starting Sunday. Python parser dayOfWeek is 0-indexed starting Monday.
+        val dayOfWeek = (cal.get(Calendar.DAY_OF_WEEK) + 5) % 7 // Monday=0 ... Saturday=5, Sunday=6
+
+        return if (dayOfWeek == 6) {
+            // Sunday uses Sunday default
+            dao.getDefaultTimetableForDay(6)?.timetableName
+                ?: dao.getDefaultTimetableForDay(0)?.timetableName
+                ?: "13S010326_5TPHT_MRP1"
+        } else {
+            // Monday through Saturday (0..5) uses Weekday default (day 0)
+            dao.getDefaultTimetableForDay(0)?.timetableName
+                ?: dao.getDefaultTimetableForDay(dayOfWeek)?.timetableName
+                ?: "16W070926_TPHTOFFPEAK_MRP1"
+        }
+    }
+
     suspend fun getUpcomingTrains(
         fromStationId: Int,
         toStationId: Int,
@@ -31,19 +57,7 @@ class TimetableRepository(
         val direction = if (fromStationId < toStationId) "UP" else "DOWN"
         
         // 1. Determine Timetable to use
-        val dateFormat = SimpleDateFormat("yyyy-MM-dd", Locale.US)
-        val dateStr = dateFormat.format(currentDate)
-        
-        val override = dao.getOverrideForDate(dateStr)
-        val timetableName = if (override != null) {
-            override.timetableName
-        } else {
-            val cal = Calendar.getInstance().apply { time = currentDate }
-            // Calendar.DAY_OF_WEEK is 1-indexed starting Sunday. Python parser dayOfWeek is 0-indexed starting Monday.
-            val dayOfWeek = (cal.get(Calendar.DAY_OF_WEEK) + 5) % 7 // Monday=0, Sunday=6
-            dao.getDefaultTimetableForDay(dayOfWeek)?.timetableName 
-                ?: return@withContext Pair("Unknown", emptyList()) // Fallback if no default found
-        }
+        val timetableName = getEffectiveTimetableNameForDate(currentDate)
         
         val timetable = dao.getTimetableByName(timetableName)
             ?: dao.getAllTimetables().maxByOrNull { it.id }
@@ -72,19 +86,8 @@ class TimetableRepository(
         stationId: Int,
         currentDate: Date = Date()
     ): Triple<String, List<StationTrainResult>, List<StationTrainResult>> = withContext(Dispatchers.IO) {
-        // Determine timetable (identical logic to getUpcomingTrains)
-        val dateFormat = SimpleDateFormat("yyyy-MM-dd", Locale.US)
-        val dateStr = dateFormat.format(currentDate)
-
-        val override = dao.getOverrideForDate(dateStr)
-        val timetableName = if (override != null) {
-            override.timetableName
-        } else {
-            val cal = Calendar.getInstance().apply { time = currentDate }
-            val dayOfWeek = (cal.get(Calendar.DAY_OF_WEEK) + 5) % 7
-            dao.getDefaultTimetableForDay(dayOfWeek)?.timetableName
-                ?: return@withContext Triple("Unknown", emptyList(), emptyList())
-        }
+        // Determine timetable
+        val timetableName = getEffectiveTimetableNameForDate(currentDate)
 
         val timetable = dao.getTimetableByName(timetableName)
             ?: dao.getAllTimetables().maxByOrNull { it.id }

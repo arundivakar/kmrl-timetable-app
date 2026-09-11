@@ -195,7 +195,13 @@
     const jsDay = date.getDay(); // 0 = Sun, 1 = Mon ...
     const pythonDay = (jsDay + 6) % 7;
 
-    return state.dayDefaults[pythonDay] || '16W070926_TPHTOFFPEAK_MRP1';
+    if (pythonDay === 6) {
+      // Sunday default
+      return state.dayDefaults[6] || '13S010326_5TPHT_MRP1';
+    } else {
+      // In KMRL, Mon-Sat (0..5) uses Weekday default (day 0)
+      return state.dayDefaults[0] || state.dayDefaults[pythonDay] || '16W070926_TPHTOFFPEAK_MRP1';
+    }
   }
 
   async function getTimetableData(timetableName) {

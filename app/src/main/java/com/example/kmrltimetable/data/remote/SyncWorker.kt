@@ -60,6 +60,14 @@ class SyncWorker(context: Context, params: WorkerParameters) : CoroutineWorker(c
             dayDefaults.forEach { (dayOfWeek, timetableName) ->
                 dao.updateDayDefault(dayOfWeek, timetableName)
             }
+            // In KMRL, Weekdays are Mon-Sat (0..5). Auto-heal Saturday (5) to match Weekday default (0) if holding a legacy Sunday schedule
+            val weekdayName = dayDefaults[0] ?: dao.getDefaultTimetableForDay(0)?.timetableName
+            if (weekdayName != null) {
+                val satName = dayDefaults[5]
+                if (satName == null || satName.contains("S", ignoreCase = false)) {
+                    dao.updateDayDefault(5, weekdayName)
+                }
+            }
 
             // 4. Save new version + sync timestamp
             val now = java.text.SimpleDateFormat("yyyy-MM-dd HH:mm:ss", java.util.Locale.US)
