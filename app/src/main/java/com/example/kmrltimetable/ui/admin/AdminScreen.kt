@@ -310,7 +310,7 @@ fun CalendarTab(viewModel: AdminViewModel, uiState: AdminUiState) {
     var selectedDateLabel by remember { mutableStateOf("") }
 
     var showWeekdayDialog by remember { mutableStateOf(false) }
-    var showWeekendDialog by remember { mutableStateOf(false) }
+    var showSundayDialog by remember { mutableStateOf(false) }
 
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
@@ -328,7 +328,7 @@ fun CalendarTab(viewModel: AdminViewModel, uiState: AdminUiState) {
                 shape = RoundedCornerShape(12.dp)
             ) {
                 Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                    // Weekday default row
+                    // Weekday default row (Mon-Sat)
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         verticalAlignment = Alignment.CenterVertically,
@@ -338,7 +338,7 @@ fun CalendarTab(viewModel: AdminViewModel, uiState: AdminUiState) {
                             Row(verticalAlignment = Alignment.CenterVertically) {
                                 Box(modifier = Modifier.size(8.dp).background(KmrlTeal, CircleShape))
                                 Spacer(Modifier.width(8.dp))
-                                Text("Default Weekday (Mon–Fri)", fontWeight = FontWeight.Bold, fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurface)
+                                Text("Default Weekday (Mon–Sat)", fontWeight = FontWeight.Bold, fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurface)
                             }
                             Spacer(Modifier.height(2.dp))
                             Text(
@@ -364,7 +364,7 @@ fun CalendarTab(viewModel: AdminViewModel, uiState: AdminUiState) {
 
                     HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
 
-                    // Weekend default row
+                    // Sunday default row
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         verticalAlignment = Alignment.CenterVertically,
@@ -374,11 +374,11 @@ fun CalendarTab(viewModel: AdminViewModel, uiState: AdminUiState) {
                             Row(verticalAlignment = Alignment.CenterVertically) {
                                 Box(modifier = Modifier.size(8.dp).background(Color(0xFF7B1FA2), CircleShape))
                                 Spacer(Modifier.width(8.dp))
-                                Text("Default Weekend (Sat & Sun)", fontWeight = FontWeight.Bold, fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurface)
+                                Text("Default Sunday", fontWeight = FontWeight.Bold, fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurface)
                             }
                             Spacer(Modifier.height(2.dp))
                             Text(
-                                text = uiState.weekendDefault ?: "Not set",
+                                text = uiState.sundayDefault ?: "Not set",
                                 fontSize = 12.sp,
                                 color = Color(0xFF7B1FA2),
                                 fontWeight = FontWeight.Medium,
@@ -386,7 +386,7 @@ fun CalendarTab(viewModel: AdminViewModel, uiState: AdminUiState) {
                             )
                         }
                         Button(
-                            onClick = { showWeekendDialog = true },
+                            onClick = { showSundayDialog = true },
                             colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF7B1FA2)),
                             contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp),
                             shape = RoundedCornerShape(8.dp),
@@ -468,7 +468,7 @@ fun CalendarTab(viewModel: AdminViewModel, uiState: AdminUiState) {
 
     if (showWeekdayDialog) {
         AssignTimetableDialog(
-            dateLabel       = "Default Weekday Timetable (Mon–Fri)",
+            dateLabel       = "Default Weekday Timetable (Mon–Sat)",
             timetables      = uiState.timetables,
             currentAssigned = uiState.weekdayDefault,
             onDismiss       = { showWeekdayDialog = false },
@@ -479,15 +479,15 @@ fun CalendarTab(viewModel: AdminViewModel, uiState: AdminUiState) {
         )
     }
 
-    if (showWeekendDialog) {
+    if (showSundayDialog) {
         AssignTimetableDialog(
-            dateLabel       = "Default Weekend Timetable (Sat & Sun)",
+            dateLabel       = "Default Sunday Timetable",
             timetables      = uiState.timetables,
-            currentAssigned = uiState.weekendDefault,
-            onDismiss       = { showWeekendDialog = false },
+            currentAssigned = uiState.sundayDefault,
+            onDismiss       = { showSundayDialog = false },
             onConfirm       = { timetableName ->
-                viewModel.setDefaultWeekendTimetable(timetableName)
-                showWeekendDialog = false
+                viewModel.setDefaultSundayTimetable(timetableName)
+                showSundayDialog = false
             }
         )
     }

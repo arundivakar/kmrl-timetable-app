@@ -13,8 +13,8 @@ android {
         applicationId = "com.example.kmrltimetable"
         minSdk = 24
         targetSdk = 36
-        versionCode = 12
-        versionName = "5.0.7"
+        versionCode = 13
+        versionName = "5.0.8"
     }
 
     buildTypes {
