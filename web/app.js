@@ -42,6 +42,21 @@
       await syncFirebaseDefaults();
       setDefaultStations();
       renderAll();
+
+      // Auto-sync with Firebase when app resumes or regains focus (e.g. unlocking iPhone)
+      document.addEventListener('visibilitychange', () => {
+        if (document.visibilityState === 'visible') {
+          syncFirebaseDefaults().then(() => renderAll());
+        }
+      });
+      window.addEventListener('focus', () => {
+        syncFirebaseDefaults().then(() => renderAll());
+      });
+
+      // Background sync every 2 minutes so active users get live admin updates without manual reload
+      setInterval(() => {
+        syncFirebaseDefaults().then(() => renderAll());
+      }, 120000);
     } catch (err) {
       console.error('Initialization error:', err);
     }
