@@ -29,12 +29,14 @@ jobs:
         run: chmod +x gradlew
 
       - name: Build Release APK
-        run: ./gradlew assembleRelease
+        run: |
+          ./gradlew assembleRelease
+          cp app/build/outputs/apk/release/app-release.apk KMRL_Timetable_${{ github.ref_name }}_Release.apk
 
       - name: Create Release and Upload APK
         uses: softprops/action-gh-release@v2
         with:
-          files: app/build/outputs/apk/release/app-release.apk
+          files: KMRL_Timetable_${{ github.ref_name }}_Release.apk
           name: KMRL Timetable ${{ github.ref_name }}
           draft: false
           prerelease: false
