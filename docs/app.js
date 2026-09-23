@@ -319,7 +319,10 @@
       });
     });
 
+    let swapRotation = 0;
     document.getElementById('btn-swap-stations').addEventListener('click', () => {
+      swapRotation += 180;
+      document.getElementById('btn-swap-stations').style.transform = `rotate(${swapRotation}deg)`;
       const temp = state.selectedFromStation;
       state.selectedFromStation = state.selectedToStation;
       state.selectedToStation = temp;

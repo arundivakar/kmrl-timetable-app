@@ -1,5 +1,9 @@
 package com.example.kmrltimetable.ui.components
 
+import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.spring
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -13,14 +17,14 @@ import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.LocationOn
 import androidx.compose.material.icons.filled.Search
-import androidx.compose.material.icons.filled.SwapVert
+import androidx.compose.material.icons.rounded.SwapVert
 import androidx.compose.material.icons.outlined.Schedule
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -42,29 +46,78 @@ fun StationSelectorCard(
     Card(
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
         shape = RoundedCornerShape(12.dp),
-        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp).border(1.dp, MaterialTheme.colorScheme.outlineVariant, RoundedCornerShape(12.dp)),
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp)
+            .border(1.dp, MaterialTheme.colorScheme.outlineVariant, RoundedCornerShape(12.dp)),
         elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
     ) {
         Column {
             Box {
                 Column {
                     StationSearchBox("FROM", fromStation, stations, onFromSelected, isFrom = true)
-                    HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant, modifier = Modifier.padding(start = 50.dp, end = 16.dp))
+                    HorizontalDivider(
+                        color = MaterialTheme.colorScheme.outlineVariant,
+                        modifier = Modifier.padding(start = 50.dp, end = 20.dp)
+                    )
                     StationSearchBox("TO", toStation, stations, onToSelected, isFrom = false)
                 }
                 
-                // Swap Button layered exactly over the divider
+                // Modern Interchange Button cleanly centered over the divider
                 Box(
-                    modifier = Modifier.align(Alignment.CenterEnd).padding(end = 24.dp).offset(y = 0.dp).zIndex(1f)
+                    modifier = Modifier
+                        .align(Alignment.CenterEnd)
+                        .padding(end = 20.dp)
+                        .zIndex(1f)
                 ) {
-                    IconButton(
-                        onClick = onSwap,
-                        modifier = Modifier.size(36.dp).background(KmrlTeal, CircleShape).shadow(4.dp, CircleShape)
-                    ) {
-                        Icon(Icons.Default.SwapVert, contentDescription = "Swap", tint = Color.White)
-                    }
+                    StationSwapButton(onSwap = onSwap)
                 }
             }
+        }
+    }
+}
+
+@Composable
+fun StationSwapButton(
+    onSwap: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    var rotationAngle by remember { mutableFloatStateOf(0f) }
+    val animatedRotation by animateFloatAsState(
+        targetValue = rotationAngle,
+        animationSpec = spring(
+            dampingRatio = Spring.DampingRatioMediumBouncy,
+            stiffness = Spring.StiffnessLow
+        ),
+        label = "swap_rotation"
+    )
+
+    Surface(
+        onClick = {
+            rotationAngle += 180f
+            onSwap()
+        },
+        shape = CircleShape,
+        color = MaterialTheme.colorScheme.surface,
+        tonalElevation = 2.dp,
+        shadowElevation = 3.dp,
+        border = BorderStroke(1.5.dp, KmrlTeal.copy(alpha = 0.35f)),
+        modifier = modifier
+            .size(40.dp)
+            .graphicsLayer {
+                rotationZ = animatedRotation
+            }
+    ) {
+        Box(
+            contentAlignment = Alignment.Center,
+            modifier = Modifier.fillMaxSize()
+        ) {
+            Icon(
+                imageVector = Icons.Rounded.SwapVert,
+                contentDescription = "Swap stations",
+                tint = KmrlTeal,
+                modifier = Modifier.size(22.dp)
+            )
         }
     }
 }
@@ -84,12 +137,12 @@ fun StationSearchBox(
         modifier = Modifier
             .fillMaxWidth()
             .clickable { showDialog = true }
-            .padding(16.dp),
+            .padding(horizontal = 16.dp, vertical = 14.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
         Icon(Icons.Default.LocationOn, contentDescription = null, tint = iconColor, modifier = Modifier.size(24.dp))
         Spacer(modifier = Modifier.width(16.dp))
-        Column(modifier = Modifier.weight(1f)) {
+        Column(modifier = Modifier.weight(1f).padding(end = 40.dp)) {
             Text(label, fontSize = 10.sp, color = MaterialTheme.colorScheme.onSurfaceVariant, fontWeight = FontWeight.Bold)
             Text(
                 text = selectedStation?.name ?: "Select Station",
@@ -98,7 +151,6 @@ fun StationSearchBox(
                 color = if (selectedStation != null) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurfaceVariant
             )
         }
-        Icon(Icons.Default.KeyboardArrowDown, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
     }
 
     if (showDialog) {
