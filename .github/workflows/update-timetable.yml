@@ -27,15 +27,24 @@ jobs:
         with:
           python-version: '3.11'
 
-      - name: Process Excel Timetable into SQLite
+      - name: Process Excel Timetables into SQLite
         run: |
-          python import_timetable.py
+          python -c "
+          import os, subprocess, sys
+          files = [f for f in os.listdir('.') if f.endswith('.xlsx') and not f.startswith('~$')]
+          files.sort(key=lambda x: (not ('latest' in x.lower() or 'master' in x.lower()), os.path.getmtime(x)))
+          for f in files:
+              print(f'=== Processing {f} ===')
+              subprocess.run([sys.executable, 'import_timetable.py', f], check=True)
+          "
 
       - name: Export Web Portal Data
         run: |
           python export_web_data.py
 
       - name: Commit and Push Updated Data & Database
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           git config --local user.email "github-actions[bot]@users.noreply.github.com"
           git config --local user.name "github-actions[bot]"

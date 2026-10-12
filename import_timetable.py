@@ -17,31 +17,20 @@ from typing import Optional, Dict, List, Tuple
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 
-# Smart search for Excel file
+# Smart search for Excel file: pick most recently modified .xlsx file
 DEFAULT_XLSX_PATH = ""
-candidates = [
-    os.path.join(BASE_DIR, "Latest Timetable.xlsx"),
-    os.path.join(BASE_DIR, "Latest Timetable1.xlsx"),
-    os.path.join(os.path.dirname(BASE_DIR), "Latest Timetable.xlsx"),
-    os.path.join(os.path.dirname(BASE_DIR), "Latest Timetable1.xlsx"),
-]
-for p in candidates:
-    if os.path.exists(p):
-        DEFAULT_XLSX_PATH = p
-        break
+all_xlsx = []
+for search_dir in [BASE_DIR, os.path.dirname(BASE_DIR)]:
+    if os.path.exists(search_dir):
+        for f in os.listdir(search_dir):
+            if f.endswith(".xlsx") and not f.startswith("~$"):
+                full_p = os.path.join(search_dir, f)
+                all_xlsx.append((os.path.getmtime(full_p), full_p))
 
-if not DEFAULT_XLSX_PATH:
-    # Check any xlsx file
-    for search_dir in [BASE_DIR, os.path.dirname(BASE_DIR)]:
-        if os.path.exists(search_dir):
-            for f in os.listdir(search_dir):
-                if f.endswith(".xlsx") and not f.startswith("~$"):
-                    DEFAULT_XLSX_PATH = os.path.join(search_dir, f)
-                    break
-        if DEFAULT_XLSX_PATH:
-            break
-
-if not DEFAULT_XLSX_PATH:
+if all_xlsx:
+    all_xlsx.sort(reverse=True)
+    DEFAULT_XLSX_PATH = all_xlsx[0][1]
+else:
     DEFAULT_XLSX_PATH = os.path.join(BASE_DIR, "Latest Timetable.xlsx")
 
 DB_PATH = os.path.join(BASE_DIR, "kmrl_timetable.db")
