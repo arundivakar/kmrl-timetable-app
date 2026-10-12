@@ -39,10 +39,11 @@ jobs:
         run: |
           git config --local user.email "github-actions[bot]@users.noreply.github.com"
           git config --local user.name "github-actions[bot]"
-          git add docs/ app/src/main/assets/ kmrl_timetable.db
+          git add -A docs/ app/src/main/assets/
           if git diff --staged --quiet; then
             echo "No changes to commit"
           else
             git commit -m "Auto-update timetable data and OTA database [skip ci]"
+            git pull --rebase origin main
             git push origin main
           fi
