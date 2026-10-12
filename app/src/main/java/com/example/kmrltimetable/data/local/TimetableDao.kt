@@ -34,6 +34,18 @@ interface TimetableDao {
     @Query("SELECT * FROM timetables WHERE name = :name LIMIT 1")
     fun getTimetableByName(name: String): TimetableEntity?
 
+    @Query("DELETE FROM stop_times WHERE trip_id IN (SELECT id FROM trips WHERE timetable_id = :timetableId)")
+    fun deleteStopTimesForTimetable(timetableId: Int)
+
+    @Query("DELETE FROM trips WHERE timetable_id = :timetableId")
+    fun deleteTripsForTimetable(timetableId: Int)
+
+    @Query("DELETE FROM timetables WHERE id = :timetableId")
+    fun deleteTimetable(timetableId: Int)
+
+    @Query("DELETE FROM schedule_overrides WHERE timetable_name = :timetableName")
+    fun deleteOverridesForTimetable(timetableName: String)
+
     // ------ Day defaults ------
 
     @Query("SELECT * FROM day_defaults")

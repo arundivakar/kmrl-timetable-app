@@ -290,7 +290,7 @@ fun AdminDashboardScreen(
             } else {
                 when (selectedTab) {
                     0 -> CalendarTab(viewModel, uiState)
-                    1 -> TimetablesTab(uiState)
+                    1 -> TimetablesTab(uiState, viewModel)
                     2 -> SyncTab(uiState, viewModel)
                 }
             }
@@ -689,10 +689,41 @@ fun AssignTimetableDialog(
 // --------------------------------------------------------------------------
 
 @Composable
-fun TimetablesTab(uiState: AdminUiState) {
+fun TimetablesTab(uiState: AdminUiState, viewModel: AdminViewModel) {
     var searchQuery by remember { mutableStateOf("") }
     var selectedCategory by remember { mutableStateOf("ALL") }
+    var timetableToDelete by remember { mutableStateOf<TimetableEntity?>(null) }
     val categories = listOf("ALL", "WEEKDAY", "SUNDAY", "FESTIVAL", "SPECIAL")
+
+    // Delete confirmation dialog
+    timetableToDelete?.let { target ->
+        AlertDialog(
+            onDismissRequest = { timetableToDelete = null },
+            icon = { Icon(Icons.Default.DeleteForever, contentDescription = null, tint = Color(0xFFE53935)) },
+            title = { Text("Delete Timetable") },
+            text = {
+                Text(
+                    "Are you sure you want to delete '${target.name}'?\n\nThis will permanently remove all associated trips and stop timings from the database."
+                )
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        viewModel.deleteTimetable(target)
+                        timetableToDelete = null
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFE53935))
+                ) {
+                    Text("Delete", color = Color.White)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { timetableToDelete = null }) {
+                    Text("Cancel")
+                }
+            }
+        )
+    }
 
     val filtered = remember(uiState.timetables, searchQuery, selectedCategory) {
         uiState.timetables.filter { tt ->
@@ -812,10 +843,20 @@ fun TimetablesTab(uiState: AdminUiState) {
                             }
                         }
                         timetable.trainCount?.let { count ->
-                            Column(horizontalAlignment = Alignment.End, modifier = Modifier.padding(end = 14.dp)) {
+                            Column(horizontalAlignment = Alignment.End, modifier = Modifier.padding(end = 6.dp)) {
                                 Text("$count", fontWeight = FontWeight.Bold, color = KmrlTeal, fontSize = 18.sp)
                                 Text("trains", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                             }
+                        }
+                        IconButton(
+                            onClick = { timetableToDelete = timetable },
+                            modifier = Modifier.padding(end = 6.dp)
+                        ) {
+                            Icon(
+                                Icons.Default.DeleteOutline,
+                                contentDescription = "Delete timetable",
+                                tint = Color(0xFFE53935)
+                            )
                         }
                     }
                 }
@@ -872,33 +913,61 @@ fun TypeBadge(type: String) {
 
 @Composable
 fun SyncTab(uiState: AdminUiState, viewModel: AdminViewModel) {
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val otaVersion = remember(uiState.lastSyncTime) { 
+        com.example.kmrltimetable.data.remote.OtaSyncManager.getCurrentVersion(context) 
+    }
+    val lastOtaSync = remember(uiState.lastSyncTime) { 
+        com.example.kmrltimetable.data.remote.OtaSyncManager.getLastSyncTime(context) 
+    }
+
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
         contentPadding = PaddingValues(16.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
         item {
-            Text("SYNC STATUS", style = MaterialTheme.typography.labelLarge, color = KmrlTeal, fontWeight = FontWeight.Bold)
+            Text("OVER-THE-AIR (OTA) CLOUD SYNC", style = MaterialTheme.typography.labelLarge, color = KmrlTeal, fontWeight = FontWeight.Bold)
+        }
+        item {
+            InfoCard(label = "Cloud Timetable Version", value = otaVersion, icon = Icons.Outlined.CloudDownload)
+        }
+        item {
+            InfoCard(label = "Last Cloud OTA Sync", value = lastOtaSync ?: "Never", icon = Icons.Outlined.Schedule)
+        }
+        item {
+            Button(
+                onClick = { viewModel.syncFromCloud(context, force = true) },
+                modifier = Modifier.fillMaxWidth().height(52.dp),
+                colors = ButtonDefaults.buttonColors(containerColor = KmrlTeal),
+                shape = RoundedCornerShape(12.dp)
+            ) {
+                Icon(Icons.Outlined.CloudDownload, contentDescription = null, modifier = Modifier.size(20.dp), tint = Color.White)
+                Spacer(Modifier.width(8.dp))
+                Text("Sync from Cloud (OTA)", fontWeight = FontWeight.Bold, color = Color.White)
+            }
+        }
+        item {
+            Spacer(Modifier.height(8.dp))
+            Text("FIREBASE & LOCAL DATABASE", style = MaterialTheme.typography.labelLarge, color = KmrlTeal, fontWeight = FontWeight.Bold)
         }
         item {
             InfoCard(label = "Firebase Config Version", value = "v${uiState.configVersion}", icon = Icons.Outlined.CloudSync)
         }
         item {
-            InfoCard(label = "Last Local Sync", value = uiState.lastSyncTime.ifBlank { "Never" }, icon = Icons.Outlined.Schedule)
-        }
-        item {
             InfoCard(label = "Active Date Overrides", value = "${uiState.dateAssignments.size} dates", icon = Icons.Outlined.CalendarMonth)
         }
         item {
-            Button(
-                onClick = { viewModel.loadAdminData() },
+            OutlinedButton(
+                onClick = { viewModel.reloadBundledDatabase(context) },
                 modifier = Modifier.fillMaxWidth().height(52.dp),
-                colors = ButtonDefaults.buttonColors(containerColor = KmrlTeal),
+                colors = ButtonDefaults.outlinedButtonColors(contentColor = KmrlTeal),
+                border = BorderStroke(1.5.dp, KmrlTeal),
                 shape = RoundedCornerShape(12.dp)
             ) {
-                Icon(Icons.Default.Refresh, contentDescription = null, modifier = Modifier.size(20.dp))
+                Icon(Icons.Default.Storage, contentDescription = null, modifier = Modifier.size(20.dp))
                 Spacer(Modifier.width(8.dp))
-                Text("Refresh from Firebase", fontWeight = FontWeight.Bold)
+                Text("Reload from Bundled APK Assets", fontWeight = FontWeight.Bold)
             }
         }
         item {
@@ -908,12 +977,12 @@ fun SyncTab(uiState: AdminUiState, viewModel: AdminViewModel) {
                 shape = RoundedCornerShape(10.dp)
             ) {
                 Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                    Text("How sync works", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface)
+                    Text("How Cloud Timetable Sync Works", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface)
                     Spacer(Modifier.height(4.dp))
-                    Text("• Users sync automatically when they open the app", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    Text("• Version check is instant (~100ms)", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    Text("• Full sync only downloads when version changes", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    Text("• Users without internet use their last cached config", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text("• When a timetable Excel file is uploaded via GitHub or Web Admin, cloud automation processes it into a compressed database.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text("• The app checks for new timetables automatically in the background (every 15 min).", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text("• Download is compressed (~2.5 MB) and completes in seconds over WiFi or mobile data.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text("• No laptop, command line, or APK rebuild needed!", style = MaterialTheme.typography.bodySmall, color = KmrlTeal, fontWeight = FontWeight.Bold)
                 }
             }
         }

@@ -13,3 +13,5 @@
 .externalNativeBuild
 .cxx
 local.properties
+/kmrl_timetable.db
+/docs/data/kmrl_timetable.db

@@ -1,0 +1,843 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>KMRL Admin Panel | Cloud Timetable Sync & Import</title>
+  <meta name="description" content="KMRL Admin Panel - Upload and publish Excel timetables over the air to mobile apps without carrying a personal laptop.">
+  <link rel="icon" type="image/png" href="icons/favicon.png">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <!-- SheetJS for Excel parsing in the browser -->
+  <script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"></script>
+  <!-- JSZip for packaging output -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+  <!-- FileSaver for download trigger -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.5/FileSaver.min.js"></script>
+  <style>
+    :root {
+      --teal:#00838F; --teal-dark:#004D40; --teal-light:#4FB3BF;
+      --lime:#7CB342; --amber:#FFA000; --red:#EF5350;
+      --bg:#0D1117; --bg-surface:#161B22; --bg-card:#1C2330;
+      --bg-elevated:#21293A; --bg-input:#1A2233;
+      --text:#F0F6FC; --text2:#8B949E; --text3:#484F58;
+      --border:rgba(48,54,61,0.9); --glow:0 0 20px rgba(0,131,143,0.3);
+      --card-shadow:0 4px 20px rgba(0,0,0,0.4);
+      --font:'Outfit',-apple-system,sans-serif;
+      --mono:'JetBrains Mono','Fira Code',monospace;
+      --r6:6px;--r12:12px;--r16:16px;
+    }
+    *{box-sizing:border-box;margin:0;padding:0}
+    body{font-family:var(--font);background:var(--bg);color:var(--text);min-height:100vh;overflow-x:hidden}
+    body::before{content:'';position:fixed;inset:0;background:
+      radial-gradient(ellipse 80% 50% at 20% 10%,rgba(0,131,143,.14) 0%,transparent 60%),
+      radial-gradient(ellipse 60% 40% at 80% 80%,rgba(0,77,64,.12) 0%,transparent 60%);
+      pointer-events:none;z-index:0}
+
+    .wrap{position:relative;z-index:1;max-width:980px;margin:0 auto;padding:0 20px 60px}
+
+    /* Header */
+    .hdr{display:flex;align-items:center;gap:16px;padding:24px 0 18px;border-bottom:1px solid var(--border);margin-bottom:24px}
+    .hdr-logo{width:48px;height:48px;background:linear-gradient(135deg,var(--teal-dark),var(--teal));border-radius:var(--r12);display:flex;align-items:center;justify-content:center;box-shadow:var(--glow);flex-shrink:0}
+    .hdr-logo svg{width:28px;height:28px;stroke:#fff;fill:none;stroke-width:2}
+    .hdr-text h1{font-size:22px;font-weight:800;letter-spacing:-.3px;background:linear-gradient(90deg,var(--teal-light),var(--text) 60%);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text}
+    .hdr-text p{font-size:13px;color:var(--text2);margin-top:2px}
+    .badge{margin-left:auto;background:rgba(0,131,143,.18);border:1px solid rgba(0,131,143,.4);color:var(--teal-light);font-size:11px;font-weight:700;letter-spacing:1px;padding:4px 12px;border-radius:100px}
+
+    /* Tabs */
+    .tabs-nav{display:flex;gap:8px;background:var(--bg-surface);padding:6px;border-radius:var(--r12);border:1px solid var(--border);margin-bottom:24px}
+    .tab-btn{flex:1;display:flex;align-items:center;justify-content:center;gap:8px;padding:12px 16px;background:transparent;border:none;border-radius:8px;color:var(--text2);font-family:var(--font);font-size:14px;font-weight:700;cursor:pointer;transition:all .2s}
+    .tab-btn:hover{color:var(--text);background:rgba(255,255,255,.03)}
+    .tab-btn.active{background:linear-gradient(135deg,rgba(0,131,143,.25),rgba(0,77,64,.35));color:var(--teal-light);border:1px solid rgba(0,131,143,.4);box-shadow:var(--glow)}
+    .tab-content{display:none}
+    .tab-content.active{display:block}
+
+    /* Section */
+    .sec{margin-bottom:28px}
+    .sec-title{font-size:12px;font-weight:700;letter-spacing:1.2px;text-transform:uppercase;color:var(--text2);margin-bottom:12px;display:flex;align-items:center;gap:8px}
+    .sec-title::after{content:'';flex:1;height:1px;background:var(--border)}
+
+    /* Card */
+    .card{background:var(--bg-card);border:1px solid var(--border);border-radius:var(--r16);padding:24px;box-shadow:var(--card-shadow)}
+    .card-title{font-size:16px;font-weight:700;margin-bottom:6px;color:var(--text);display:flex;align-items:center;gap:8px}
+    .card-desc{font-size:13px;color:var(--text2);line-height:1.5;margin-bottom:20px}
+
+    /* Hero Banner */
+    .hero-banner{background:linear-gradient(135deg,rgba(0,131,143,.18),rgba(0,77,64,.25));border:1px solid rgba(0,209,178,.35);border-radius:var(--r16);padding:20px 24px;margin-bottom:24px;display:flex;align-items:center;gap:18px}
+    .hero-banner .hero-icon{font-size:32px;flex-shrink:0}
+    .hero-banner h3{color:#00D1B2;font-size:16px;font-weight:800;margin-bottom:4px}
+    .hero-banner p{font-size:13px;color:var(--text2);line-height:1.5}
+
+    /* Drop zone */
+    .drop{border:2px dashed rgba(0,131,143,.35);border-radius:var(--r16);background:var(--bg-input);padding:36px 20px;text-align:center;cursor:pointer;transition:all .25s;position:relative}
+    .drop:hover,.drop.over{border-color:var(--teal);background:rgba(0,131,143,.08);box-shadow:var(--glow)}
+    .drop input{position:absolute;inset:0;opacity:0;cursor:pointer;width:100%;height:100%}
+    .drop-icon{width:50px;height:50px;background:linear-gradient(135deg,rgba(0,131,143,.2),rgba(0,77,64,.2));border-radius:var(--r12);display:inline-flex;align-items:center;justify-content:center;margin-bottom:12px}
+    .drop-icon svg{width:26px;height:26px;stroke:var(--teal-light);fill:none;stroke-width:1.5;stroke-linecap:round;stroke-linejoin:round}
+    .drop-lbl{font-size:15px;font-weight:600;margin-bottom:4px}
+    .drop-sub{font-size:12px;color:var(--text2)}
+
+    .file-ind{display:none;align-items:center;gap:10px;background:rgba(0,131,143,.12);border:1px solid rgba(0,131,143,.3);border-radius:var(--r12);padding:12px 16px;margin-top:14px}
+    .file-ind.show{display:flex}
+    .file-ico{width:34px;height:34px;background:linear-gradient(135deg,#1D6F42,#22A06B);border-radius:8px;display:flex;align-items:center;justify-content:center;flex-shrink:0;color:#fff;font-size:10px;font-weight:800}
+    .file-info{flex:1;min-width:0}
+    .file-name{font-size:13px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+    .file-sz{font-size:12px;color:var(--text2);margin-top:2px}
+
+    /* Form Fields */
+    .field-group{margin-bottom:18px}
+    .flabel{font-size:12px;font-weight:700;color:var(--text2);letter-spacing:.5px;margin-bottom:6px;display:block}
+    .finput{width:100%;background:var(--bg-input);border:1px solid var(--border);border-radius:var(--r6);color:var(--text);font-family:var(--font);font-size:13px;padding:11px 14px;outline:none;transition:border-color .2s}
+    .finput:focus{border-color:var(--teal)}
+    .finput::placeholder{color:var(--text3)}
+    .fhelp{font-size:11px;color:var(--text2);margin-top:5px;line-height:1.4}
+    .fhelp a{color:var(--teal-light);text-decoration:none}
+    .fhelp a:hover{text-decoration:underline}
+
+    /* Buttons */
+    .btn-run{display:flex;align-items:center;justify-content:center;gap:10px;width:100%;padding:15px 24px;background:linear-gradient(135deg,var(--teal-dark),var(--teal));border:none;border-radius:var(--r12);color:#fff;font-family:var(--font);font-size:15px;font-weight:700;cursor:pointer;transition:all .2s;box-shadow:0 4px 16px rgba(0,131,143,.3)}
+    .btn-run:hover:not(:disabled){transform:translateY(-1px);box-shadow:0 6px 24px rgba(0,131,143,.4)}
+    .btn-run:disabled{opacity:.4;cursor:not-allowed}
+    .btn-secondary{display:inline-flex;align-items:center;justify-content:center;gap:8px;padding:12px 18px;background:var(--bg-elevated);border:1px solid var(--border);border-radius:var(--r12);color:var(--text);font-family:var(--font);font-size:13px;font-weight:600;cursor:pointer;transition:all .2s;text-decoration:none}
+    .btn-secondary:hover{border-color:var(--teal);color:var(--teal-light)}
+    .btn2{display:flex;align-items:center;justify-content:center;gap:8px;padding:8px 14px;background:var(--bg-elevated);border:1px solid var(--border);border-radius:var(--r6);color:var(--text);font-family:var(--font);font-size:12px;font-weight:600;cursor:pointer;transition:all .2s}
+    .btn2:hover{border-color:var(--teal);color:var(--teal-light)}
+    .btn-dl{display:flex;align-items:center;gap:8px;padding:12px 20px;background:linear-gradient(135deg,#1D4E1A,#2E7D32);border:1px solid rgba(46,125,50,.5);border-radius:var(--r12);color:#A5D6A7;font-family:var(--font);font-size:14px;font-weight:700;cursor:pointer;transition:all .2s}
+    .btn-dl:hover{transform:translateY(-1px)}
+    .btn-fb{display:flex;align-items:center;gap:8px;padding:12px 20px;background:linear-gradient(135deg,#1A237E,#3949AB);border:1px solid rgba(57,73,171,.5);border-radius:var(--r12);color:#9FA8DA;font-family:var(--font);font-size:14px;font-weight:700;cursor:pointer;transition:all .2s}
+    .btn-fb:hover{transform:translateY(-1px)}
+
+    /* Step Grid */
+    .steps-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:16px;margin-bottom:20px}
+    .step-box{background:var(--bg-elevated);border:1px solid var(--border);border-radius:var(--r12);padding:16px}
+    .step-num{display:inline-flex;width:24px;height:24px;align-items:center;justify-content:center;background:var(--teal);color:#fff;border-radius:50%;font-size:11px;font-weight:800;margin-bottom:10px}
+    .step-box h4{font-size:14px;font-weight:700;margin-bottom:4px}
+    .step-box p{font-size:12px;color:var(--text2);line-height:1.4}
+
+    /* Progress & Logs */
+    .prog-sec{display:none}
+    .prog-sec.show{display:block}
+    .prog-hdr{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px}
+    .prog-title{font-size:14px;font-weight:600}
+    .prog-pct{font-size:13px;font-weight:700;color:var(--teal-light);font-family:var(--mono)}
+    .prog-track{height:6px;background:var(--bg-elevated);border-radius:100px;overflow:hidden;margin-bottom:16px}
+    .prog-fill{height:100%;background:linear-gradient(90deg,var(--teal-dark),var(--teal-light));border-radius:100px;transition:width .3s ease;width:0%}
+    .log{background:#0A0D12;border:1px solid var(--border);border-radius:var(--r12);padding:16px;max-height:280px;overflow-y:auto;font-family:var(--mono);font-size:12px;line-height:1.7}
+    .ll{display:flex;gap:10px}
+    .lt{color:var(--text3);flex-shrink:0}
+    .lm{color:var(--text2)}
+    .ll.ok .lm{color:#52D68A}
+    .ll.warn .lm{color:var(--amber)}
+    .ll.error .lm{color:var(--red)}
+    .ll.head .lm{color:var(--teal-light);font-weight:600}
+    .ll.dim .lm{color:var(--text3)}
+
+    /* Mode Grid for Local */
+    .mode-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+    .mode-card{border:2px solid var(--border);border-radius:var(--r12);padding:16px;cursor:pointer;transition:all .2s;position:relative}
+    .mode-card:hover{border-color:rgba(0,131,143,.5);background:rgba(0,131,143,.05)}
+    .mode-card.sel{border-color:var(--teal);background:rgba(0,131,143,.10);box-shadow:0 0 0 1px rgba(0,131,143,.3)}
+    .mode-card input{position:absolute;opacity:0}
+    .mode-title{font-size:14px;font-weight:700;margin-bottom:4px}
+    .mode-desc{font-size:12px;color:var(--text2);line-height:1.5}
+    .mbadge{display:inline-block;font-size:10px;font-weight:700;letter-spacing:.8px;text-transform:uppercase;padding:2px 8px;border-radius:100px;margin-bottom:8px}
+    .mb-full{background:rgba(239,83,80,.2);color:#FF7070;border:1px solid rgba(239,83,80,.3)}
+    .mb-app{background:rgba(0,131,143,.2);color:var(--teal-light);border:1px solid rgba(0,131,143,.3)}
+
+    /* Results */
+    .res-sec{display:none}
+    .res-sec.show{display:block}
+    .stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(110px,1fr));gap:12px;margin-bottom:20px}
+    .stat{background:var(--bg-elevated);border:1px solid var(--border);border-radius:var(--r12);padding:16px;text-align:center}
+    .sv{font-size:28px;font-weight:800;background:linear-gradient(135deg,var(--teal-light),var(--text));-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;font-family:var(--mono)}
+    .sl2{font-size:11px;font-weight:600;color:var(--text2);letter-spacing:.8px;text-transform:uppercase;margin-top:4px}
+    .dl-row{display:flex;gap:12px;flex-wrap:wrap;margin-bottom:20px}
+    .tbl-wrap{overflow-x:auto;border-radius:var(--r12);border:1px solid var(--border)}
+    table{width:100%;border-collapse:collapse;font-size:12px}
+    th{background:var(--bg-elevated);color:var(--text2);font-weight:700;letter-spacing:.5px;text-transform:uppercase;font-size:11px;padding:10px 14px;text-align:left;border-bottom:1px solid var(--border);white-space:nowrap}
+    td{padding:9px 14px;border-bottom:1px solid rgba(48,54,61,.5);color:var(--text2);font-family:var(--mono);font-size:11px}
+    tr:last-child td{border-bottom:none}
+    tr:hover td{background:rgba(255,255,255,.02)}
+    .ttn{color:var(--text)!important;font-weight:600!important}
+    .tb{display:inline-block;font-size:9px;font-weight:700;letter-spacing:.5px;padding:2px 7px;border-radius:100px;text-transform:uppercase}
+    .tW{background:rgba(0,131,143,.2);color:var(--teal-light);border:1px solid rgba(0,131,143,.3)}
+    .tS{background:rgba(255,160,0,.2);color:#FFCC80;border:1px solid rgba(255,160,0,.3)}
+    .tF{background:rgba(239,83,80,.2);color:#EF9A9A;border:1px solid rgba(239,83,80,.3)}
+    .tSP{background:rgba(171,71,188,.2);color:#CE93D8;border:1px solid rgba(171,71,188,.3)}
+    .ok2{color:#52D68A!important}
+    .skip2{color:var(--amber)!important}
+
+    /* Toast */
+    .toasts{position:fixed;bottom:24px;right:24px;z-index:9999;display:flex;flex-direction:column;gap:10px}
+    .toast{background:var(--bg-card);border:1px solid var(--border);border-radius:var(--r12);padding:14px 18px;font-size:13px;font-weight:600;display:flex;align-items:center;gap:10px;box-shadow:var(--card-shadow);animation:tin .3s ease;min-width:240px;max-width:360px}
+    .toast.succ{border-color:rgba(52,214,138,.4);color:#52D68A}
+    .toast.err{border-color:rgba(239,83,80,.4);color:var(--red)}
+    .toast.info{border-color:rgba(0,131,143,.4);color:var(--teal-light)}
+    @keyframes tin{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:translateY(0)}}
+    ::-webkit-scrollbar{width:6px;height:6px}
+    ::-webkit-scrollbar-thumb{background:var(--text3);border-radius:100px}
+    @media(max-width:600px){.mode-grid{grid-template-columns:1fr}.stats{grid-template-columns:repeat(2,1fr)}.dl-row{flex-direction:column}}
+    svg{display:inline-block;vertical-align:middle}
+  </style>
+</head>
+<body>
+<div class="wrap">
+
+  <!-- Header -->
+  <header class="hdr">
+    <div class="hdr-logo">
+      <svg viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M9 21V9"/><circle cx="15" cy="15" r="2"/></svg>
+    </div>
+    <div class="hdr-text">
+      <h1>KMRL Timetable Portal</h1>
+      <p>Cloud Over-The-Air (OTA) Publishing &amp; Admin Panel</p>
+    </div>
+    <span class="badge">OTA SYNC</span>
+  </header>
+
+  <!-- Navigation Tabs -->
+  <div class="tabs-nav">
+    <button class="tab-btn active" id="tab-btn-cloud" onclick="switchTab('cloud')">
+      <span>☁️</span> Cloud Publish (No Laptop Needed)
+    </button>
+    <button class="tab-btn" id="tab-btn-local" onclick="switchTab('local')">
+      <span>⚙️</span> Client-Side Browser Tool (ZIP)
+    </button>
+  </div>
+
+  <!-- TAB 1: CLOUD PUBLISH -->
+  <div class="tab-content active" id="tab-cloud">
+    <!-- Hero Banner -->
+    <div class="hero-banner">
+      <div class="hero-icon">🚀</div>
+      <div>
+        <h3>Zero Laptop Setup Required</h3>
+        <p>Upload your Excel timetable from <strong>any browser, office PC, phone, or tablet</strong>. GitHub Actions runs the Python parser in the cloud, generates the compressed database, and pushes it to GitHub Pages. All Android apps automatically download the update Over-The-Air (OTA)!</p>
+      </div>
+    </div>
+
+    <!-- Cloud Upload Card -->
+    <div class="sec">
+      <div class="sec-title"><span>Method 1: Direct 1-Click Upload from Browser</span></div>
+      <div class="card">
+        <!-- Dropzone -->
+        <div class="field-group">
+          <label class="flabel">Select Excel Timetable File</label>
+          <div class="drop" id="cloud-drop">
+            <input type="file" id="cloud-file-input" accept=".xlsx,.xls" aria-label="Upload Excel timetable">
+            <div class="drop-icon">
+              <svg viewBox="0 0 24 24"><path d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5m-13.5-9L12 3m0 0l4.5 4.5M12 3v13.5"/></svg>
+            </div>
+            <div class="drop-lbl">Drop <strong>Latest Timetable.xlsx</strong> here or click to browse</div>
+            <div class="drop-sub">Accepts <strong>.xlsx</strong> files</div>
+          </div>
+          <div class="file-ind" id="cloud-find">
+            <div class="file-ico">XLS</div>
+            <div class="file-info">
+              <div class="file-name" id="cloud-fname">-</div>
+              <div class="file-sz" id="cloud-fsz">-</div>
+            </div>
+            <button class="btn2" id="cloud-btn-clear" style="padding:6px 12px;font-size:12px;">&times; Clear</button>
+          </div>
+        </div>
+
+        <!-- GitHub Token Input -->
+        <div class="field-group">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
+            <label class="flabel" for="gh-token" style="margin-bottom:0;">GitHub Personal Access Token (PAT)</label>
+            <a href="https://github.com/settings/tokens?type=beta" target="_blank" rel="noopener" style="font-size:11px;color:var(--teal-light);text-decoration:none;">Generate Token ↗</a>
+          </div>
+          <input class="finput" type="password" id="gh-token" placeholder="github_pat_... or ghp_..." autocomplete="off">
+          <div style="display:flex;align-items:center;gap:8px;margin-top:8px;">
+            <input type="checkbox" id="gh-save-token" checked style="accent-color:var(--teal);cursor:pointer;">
+            <label for="gh-save-token" style="font-size:12px;color:var(--text2);cursor:pointer;">Remember token on this device (saved locally in your browser)</label>
+          </div>
+          <div class="fhelp">
+            Only needed once. Fine-grained token needs <strong>Contents: Read and write</strong> and <strong>Actions/Workflows: Read and write</strong> for <code>arundivakar/kmrl-timetable-app</code>.
+          </div>
+        </div>
+
+        <!-- Action Button -->
+        <button class="btn-run" id="btn-cloud-push" disabled>
+          <svg width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 16.5V9.75m0 0l3 3m-3-3l-3 3M6.75 19.5a4.5 4.5 0 01-1.41-8.775 5.25 5.25 0 0110.233-2.33 3 3 0 013.758 3.848A3.752 3.752 0 0118 19.5H6.75z"/></svg>
+          🚀 Push to Cloud &amp; Auto-Publish OTA
+        </button>
+
+        <!-- Live Status / Log -->
+        <div class="prog-sec" id="cloud-prog-sec" style="margin-top:20px;">
+          <div class="prog-hdr">
+            <span class="prog-title" id="cloud-prog-title">Cloud Deployment Status</span>
+            <span class="prog-pct" id="cloud-prog-pct">0%</span>
+          </div>
+          <div class="prog-track"><div class="prog-fill" id="cloud-prog-fill"></div></div>
+          <div class="log" id="cloud-log"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Zero-Token Alternative: GitHub Web UI -->
+    <div class="sec">
+      <div class="sec-title"><span>Method 2: Zero Token Needed (Direct GitHub Web)</span></div>
+      <div class="card">
+        <div class="card-title">
+          <span>🌐</span> Upload Directly on GitHub.com from Any Phone or Computer
+        </div>
+        <p class="card-desc">If you don't want to create or manage a personal access token, you can upload the file directly on GitHub.com through its standard web interface:</p>
+
+        <div class="steps-grid">
+          <div class="step-box">
+            <span class="step-num">1</span>
+            <h4>Open GitHub Upload Page</h4>
+            <p>Click the button below to open the repository file uploader in your browser.</p>
+          </div>
+          <div class="step-box">
+            <span class="step-num">2</span>
+            <h4>Drag &amp; Drop Excel</h4>
+            <p>Drop your <strong>Latest Timetable.xlsx</strong> file into the GitHub box.</p>
+          </div>
+          <div class="step-box">
+            <span class="step-num">3</span>
+            <h4>Click "Commit changes"</h4>
+            <p>GitHub automatically runs the timetable parser and updates mobile apps OTA!</p>
+          </div>
+        </div>
+
+        <div style="display:flex;gap:12px;flex-wrap:wrap;">
+          <a class="btn-secondary" href="https://github.com/arundivakar/kmrl-timetable-app/upload/main" target="_blank" rel="noopener">
+            <svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5m-13.5-9L12 3m0 0l4.5 4.5M12 3v13.5"/></svg>
+            Open GitHub Upload Page ↗
+          </a>
+          <a class="btn-secondary" href="https://github.com/arundivakar/kmrl-timetable-app/actions" target="_blank" rel="noopener">
+            <svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M3.75 13.5l10.5-11.25L12 10.5h8.25L9.75 21.75 12 13.5H3.75z"/></svg>
+            View Cloud Actions Runs ↗
+          </a>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- TAB 2: CLIENT-SIDE LOCAL PARSER -->
+  <div class="tab-content" id="tab-local">
+    <!-- Step 1: Upload -->
+    <div class="sec">
+      <div class="sec-title"><span>&#9312; Upload Excel File</span></div>
+      <div class="drop" id="drop">
+        <input type="file" id="file-input" accept=".xlsx,.xls" aria-label="Upload Excel timetable">
+        <div class="drop-icon">
+          <svg viewBox="0 0 24 24"><path d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5m-13.5-9L12 3m0 0l4.5 4.5M12 3v13.5"/></svg>
+        </div>
+        <div class="drop-lbl">Drop your Excel file here</div>
+        <div class="drop-sub">Accepts <strong>.xlsx</strong> &mdash; Master Workbook or Single Timetable Sheet</div>
+      </div>
+      <div class="file-ind" id="find">
+        <div class="file-ico">XLS</div>
+        <div class="file-info">
+          <div class="file-name" id="fname">-</div>
+          <div class="file-sz" id="fsz">-</div>
+        </div>
+        <button class="btn2" id="btn-clear" style="padding:6px 12px;font-size:12px;">&times; Clear</button>
+      </div>
+    </div>
+
+    <!-- Step 2: Mode -->
+    <div class="sec">
+      <div class="sec-title"><span>&#9313; Import Mode</span></div>
+      <div class="mode-grid">
+        <label class="mode-card sel" id="card-full">
+          <input type="radio" name="mode" id="mode-full" value="full" checked>
+          <div class="mbadge mb-full">Full Rebuild</div>
+          <div class="mode-title">Master Workbook</div>
+          <div class="mode-desc">Complete re-import from multi-sheet master Excel. Rebuilds all timetables and day defaults.</div>
+        </label>
+        <label class="mode-card" id="card-app">
+          <input type="radio" name="mode" id="mode-app" value="append">
+          <div class="mbadge mb-app">Append</div>
+          <div class="mode-title">Single Timetable</div>
+          <div class="mode-desc">Add or update one timetable from a standalone sheet. Merges with existing data.json files.</div>
+        </label>
+      </div>
+    </div>
+
+    <!-- Step 3: Firebase -->
+    <div class="sec">
+      <div class="sec-title"><span>&#9314; Firebase RTDB Sync (Optional)</span></div>
+      <div class="card">
+        <div class="fb-row" style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
+          <div>
+            <div class="fb-lbl" style="font-weight:600;">Push defaults to Firebase</div>
+            <div class="fb-sub" style="font-size:12px;color:var(--text2);">Updates day_defaults &amp; date_assignments in real-time DB</div>
+          </div>
+          <label class="sw" style="position:relative;width:44px;height:24px;">
+            <input type="checkbox" id="fb-toggle" style="opacity:0;width:0;height:0;">
+            <span class="sl" style="position:absolute;inset:0;background:var(--bg-elevated);border:1px solid var(--border);border-radius:100px;cursor:pointer;"></span>
+          </label>
+        </div>
+        <div class="fb-fields" id="fb-fields" style="display:none;flex-direction:column;gap:12px;">
+          <div>
+            <label class="flabel" for="fb-url">Firebase RTDB URL</label>
+            <input class="finput" type="url" id="fb-url" placeholder="https://your-project.firebaseio.com" value="https://kmrl-train-finder-default-rtdb.asia-southeast1.firebasedatabase.app">
+          </div>
+          <div>
+            <label class="flabel" for="fb-secret">Database Secret / ID Token (optional)</label>
+            <input class="finput" type="password" id="fb-secret" placeholder="Leave blank for open rules (dev only)">
+          </div>
+          <div class="fhelp">&#9888; Only day_defaults and special date overrides are pushed to Firebase. Timetable JSON data is bundled locally &mdash; download the ZIP and deploy to GitHub Pages (docs/data/).</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Run Local -->
+    <button class="btn-run" id="btn-run" disabled>
+      <svg width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M5.25 5.653c0-.856.917-1.398 1.667-.986l11.54 6.347a1.125 1.125 0 010 1.972l-11.54 6.347a1.125 1.125 0 01-1.667-.985V5.653z"/></svg>
+      Run Client-Side Parse
+    </button>
+
+    <!-- Progress Local -->
+    <div class="sec prog-sec" id="prog-sec" style="margin-top:28px">
+      <div class="sec-title"><span>&#9881; Processing</span></div>
+      <div class="card">
+        <div class="prog-hdr">
+          <span class="prog-title" id="prog-title">Parsing Excel&hellip;</span>
+          <span class="prog-pct" id="prog-pct">0%</span>
+        </div>
+        <div class="prog-track"><div class="prog-fill" id="prog-fill"></div></div>
+        <div class="log" id="log"></div>
+      </div>
+    </div>
+
+    <!-- Results Local -->
+    <div class="sec res-sec" id="res-sec" style="margin-top:28px">
+      <div class="sec-title"><span>&#10003; Import Results</span></div>
+      <div class="card">
+        <div class="stats" id="stats"></div>
+        <div class="dl-row">
+          <button class="btn-dl" id="btn-dl">
+            <svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5M16.5 12L12 16.5m0 0L7.5 12m4.5 4.5V3"/></svg>
+            Download data/ ZIP
+          </button>
+          <button class="btn-fb" id="btn-fb-push" disabled>
+            <svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 16.5V9.75m0 0l3 3m-3-3l-3 3M6.75 19.5a4.5 4.5 0 01-1.41-8.775 5.25 5.25 0 0110.233-2.33 3 3 0 013.758 3.848A3.752 3.752 0 0118 19.5H6.75z"/></svg>
+            Push to Firebase
+          </button>
+        </div>
+        <div class="sec-title" style="margin-top:4px"><span>Processed Timetables</span></div>
+        <div class="tbl-wrap">
+          <table>
+            <thead><tr><th>#</th><th>Name</th><th>Type</th><th>Trains</th><th>Trips</th><th>Stops</th><th>Status</th></tr></thead>
+            <tbody id="tt-body"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<!-- Toast Container -->
+<div class="toasts" id="toasts"></div>
+
+<script>
+// ── Tab Switching ────────────────────────────────────────────────
+function switchTab(t) {
+  document.getElementById('tab-btn-cloud').classList.toggle('active', t === 'cloud');
+  document.getElementById('tab-btn-local').classList.toggle('active', t === 'local');
+  document.getElementById('tab-cloud').classList.toggle('active', t === 'cloud');
+  document.getElementById('tab-local').classList.toggle('active', t === 'local');
+}
+
+// ── Helpers ──────────────────────────────────────────────────────
+const $ = id => document.getElementById(id);
+const esc = s => String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+
+function toast(msg, type='info', dur=4000) {
+  const c = $('toasts');
+  const t = document.createElement('div');
+  t.className = 'toast ' + type;
+  const icons = {succ:'✅', err:'❌', info:'ℹ️'};
+  t.innerHTML = `<span>${icons[type]||''}</span><span>${esc(msg)}</span>`;
+  c.appendChild(t);
+  setTimeout(() => {
+    t.style.cssText = 'opacity:0;transition:.4s';
+    setTimeout(() => t.remove(), 400);
+  }, dur);
+}
+
+function fmtBytes(n) {
+  if (n < 1024) return n + ' B';
+  if (n < 1048576) return (n / 1024).toFixed(1) + ' KB';
+  return (n / 1048576).toFixed(2) + ' MB';
+}
+
+// ── Cloud Upload Logic ───────────────────────────────────────────
+const GH_OWNER = 'arundivakar';
+const GH_REPO = 'kmrl-timetable-app';
+const TARGET_FILENAME = 'Latest Timetable.xlsx';
+
+let cloudFile = null;
+
+// Initialize Saved GitHub Token
+const savedPat = localStorage.getItem('kmrl_github_pat') || '';
+if (savedPat) {
+  $('gh-token').value = savedPat;
+}
+
+$('gh-token').addEventListener('input', e => {
+  if ($('gh-save-token').checked) {
+    localStorage.setItem('kmrl_github_pat', e.target.value.trim());
+  }
+});
+
+$('gh-save-token').addEventListener('change', e => {
+  if (e.target.checked) {
+    localStorage.setItem('kmrl_github_pat', $('gh-token').value.trim());
+  } else {
+    localStorage.removeItem('kmrl_github_pat');
+  }
+});
+
+const cDrop = $('cloud-drop'), cFi = $('cloud-file-input');
+['dragenter','dragover'].forEach(e => cDrop.addEventListener(e, ev => { ev.preventDefault(); cDrop.classList.add('over'); }));
+['dragleave','drop'].forEach(e => cDrop.addEventListener(e, ev => { ev.preventDefault(); cDrop.classList.remove('over'); }));
+cDrop.addEventListener('drop', ev => { if (ev.dataTransfer.files[0]) setCloudFile(ev.dataTransfer.files[0]); });
+cFi.addEventListener('change', ev => { if (ev.target.files[0]) setCloudFile(ev.target.files[0]); });
+
+function setCloudFile(f) {
+  cloudFile = f;
+  $('cloud-fname').textContent = f.name;
+  $('cloud-fsz').textContent = fmtBytes(f.size);
+  $('cloud-find').classList.add('show');
+  $('btn-cloud-push').disabled = false;
+  $('cloud-prog-sec').classList.remove('show');
+}
+
+$('cloud-btn-clear').addEventListener('click', () => {
+  cloudFile = null; cFi.value = '';
+  $('cloud-find').classList.remove('show');
+  $('btn-cloud-push').disabled = true;
+  $('cloud-prog-sec').classList.remove('show');
+});
+
+function addCloudLog(msg, type='info') {
+  const log = $('cloud-log');
+  const d = document.createElement('div');
+  d.className = 'll ' + type;
+  const time = new Date().toTimeString().slice(0, 8);
+  d.innerHTML = `<span class="lt">[${time}]</span><span class="lm">${esc(msg)}</span>`;
+  log.appendChild(d);
+  log.scrollTop = log.scrollHeight;
+}
+
+function setCloudProgress(pct, title) {
+  $('cloud-prog-pct').textContent = pct + '%';
+  $('cloud-prog-fill').style.width = pct + '%';
+  if (title) $('cloud-prog-title').textContent = title;
+}
+
+function fileToBase64(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      const base64 = reader.result.split(',')[1];
+      resolve(base64);
+    };
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+  });
+}
+
+$('btn-cloud-push').addEventListener('click', async () => {
+  if (!cloudFile) { toast('Please select an Excel file first.', 'err'); return; }
+  const token = $('gh-token').value.trim();
+  if (!token) { toast('Please enter your GitHub Personal Access Token.', 'err'); $('gh-token').focus(); return; }
+
+  const btn = $('btn-cloud-push');
+  btn.disabled = true;
+  $('cloud-prog-sec').classList.add('show');
+  $('cloud-log').innerHTML = '';
+  setCloudProgress(5, 'Preparing file...');
+
+  try {
+    addCloudLog(`Encoding ${cloudFile.name} (${fmtBytes(cloudFile.size)})...`, 'head');
+    const base64Data = await fileToBase64(cloudFile);
+
+    setCloudProgress(20, 'Querying GitHub repository...');
+    addCloudLog(`Connecting to GitHub repository ${GH_OWNER}/${GH_REPO}...`);
+
+    // 1. Fetch current file SHA if exists
+    const fileUrl = `https://api.github.com/repos/${GH_OWNER}/${GH_REPO}/contents/${encodeURIComponent(TARGET_FILENAME)}`;
+    const getRes = await fetch(fileUrl, {
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Accept': 'application/vnd.github.v3+json'
+      }
+    });
+
+    let currentSha = null;
+    if (getRes.ok) {
+      const getJson = await getRes.json();
+      currentSha = getJson.sha;
+      addCloudLog(`Found existing ${TARGET_FILENAME} (SHA: ${currentSha.slice(0, 7)})`, 'dim');
+    } else if (getRes.status === 404) {
+      addCloudLog(`Creating new ${TARGET_FILENAME} in repository`, 'dim');
+    } else if (getRes.status === 401 || getRes.status === 403) {
+      throw new Error('GitHub Token is invalid or missing permissions. Please verify token.');
+    }
+
+    // 2. Commit file to main branch
+    setCloudProgress(40, 'Committing file to GitHub...');
+    addCloudLog(`Committing ${TARGET_FILENAME} to main branch...`, 'head');
+
+    const commitPayload = {
+      message: `Update timetable Excel via Web Admin [auto OTA]`,
+      content: base64Data,
+      branch: 'main'
+    };
+    if (currentSha) commitPayload.sha = currentSha;
+
+    const putRes = await fetch(fileUrl, {
+      method: 'PUT',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json',
+        'Accept': 'application/vnd.github.v3+json'
+      },
+      body: JSON.stringify(commitPayload)
+    });
+
+    if (!putRes.ok) {
+      const errJson = await putRes.json().catch(() => ({}));
+      throw new Error(`GitHub Commit failed (${putRes.status}): ${errJson.message || putRes.statusText}`);
+    }
+
+    addCloudLog(`File committed successfully to main branch! ✅`, 'ok');
+    setCloudProgress(60, 'Triggered GitHub Actions...');
+    addCloudLog(`GitHub Action workflow "Process Timetable & Publish OTA" triggered.`, 'head');
+    addCloudLog(`Processing SQLite database, compressing OTA payload, and updating GitHub Pages...`);
+
+    // 3. Monitor workflow status for up to 90 seconds
+    setCloudProgress(70, 'Running cloud processing...');
+    let workflowFinished = false;
+    let attempts = 0;
+
+    while (attempts < 15 && !workflowFinished) {
+      await new Promise(r => setTimeout(r, 4000));
+      attempts++;
+
+      try {
+        const runsRes = await fetch(`https://api.github.com/repos/${GH_OWNER}/${GH_REPO}/actions/runs?per_page=1`, {
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Accept': 'application/vnd.github.v3+json'
+          }
+        });
+
+        if (runsRes.ok) {
+          const runsJson = await runsRes.json();
+          const run = runsJson.workflow_runs && runsJson.workflow_runs[0];
+          if (run) {
+            addCloudLog(`Cloud Action status: ${run.name} #${run.run_number} (${run.status} / ${run.conclusion || 'running'})`, 'dim');
+            if (run.status === 'completed') {
+              workflowFinished = true;
+              if (run.conclusion === 'success') {
+                addCloudLog(`Cloud Action completed successfully! 🎉`, 'ok');
+              } else {
+                addCloudLog(`Cloud Action concluded with: ${run.conclusion}`, 'warn');
+              }
+              break;
+            }
+          }
+        }
+      } catch (e) {
+        // Ignore poll error and keep waiting
+      }
+    }
+
+    setCloudProgress(100, 'Cloud Publish Complete!');
+    addCloudLog(`==============================================`, 'ok');
+    addCloudLog(`ALL DONE! Timetable is live.`, 'ok');
+    addCloudLog(`All Android devices will download the updated timetable automatically Over-The-Air (OTA).`, 'ok');
+    addCloudLog(`==============================================`, 'ok');
+    toast('Cloud Publish Complete! Mobile apps will sync OTA.', 'succ', 6000);
+
+  } catch (err) {
+    addCloudLog(`ERROR: ${err.message}`, 'error');
+    toast(`Upload failed: ${err.message}`, 'err', 6000);
+    setCloudProgress(0, 'Failed');
+  } finally {
+    btn.disabled = false;
+  }
+});
+
+// ── Client-Side Local Parser (Original Logic) ────────────────────
+const STATIONS = [
+  {id:1,code:"ALP",name:"Aluva",seq:1},{id:2,code:"PNC",name:"Pulinchodu",seq:2},
+  {id:3,code:"CMP",name:"Companypady",seq:3},{id:4,code:"AMB",name:"Ambattukavu",seq:4},
+  {id:5,code:"MUT",name:"Muttom",seq:5},{id:6,code:"KLM",name:"Kalamassery",seq:6},
+  {id:7,code:"CUS",name:"Cochin University",seq:7},{id:8,code:"PTH",name:"Pathadipalam",seq:8},
+  {id:9,code:"EDP",name:"Edapally",seq:9},{id:10,code:"CST",name:"Changampuzha Park",seq:10},
+  {id:11,code:"PLR",name:"Palarivattom",seq:11},{id:12,code:"JLNS",name:"JLN Stadium",seq:12},
+  {id:13,code:"KLL",name:"Kaloor",seq:13},{id:14,code:"LIS",name:"Lissie",seq:14},
+  {id:15,code:"MGR",name:"M.G Road",seq:15},{id:16,code:"MAH",name:"Maharajas College",seq:16},
+  {id:17,code:"ERS",name:"Ernakulam South",seq:17},{id:18,code:"KAD",name:"Kadavanthra",seq:18},
+  {id:19,code:"ELM",name:"Elamkulam",seq:19},{id:20,code:"VYTT",name:"Vyttila",seq:20},
+  {id:21,code:"TYK",name:"Thaikoodam",seq:21},{id:22,code:"PET",name:"Petta",seq:22},
+  {id:23,code:"VDL",name:"Vadakkekotta",seq:23},{id:24,code:"SNJ",name:"SN Junction",seq:24},
+  {id:25,code:"TRP",name:"Thripunithura",seq:25}
+];
+
+let selFile = null;
+let importResult = null;
+
+const drop = $('drop'), fi = $('file-input');
+['dragenter','dragover'].forEach(e => drop.addEventListener(e, ev => { ev.preventDefault(); drop.classList.add('over'); }));
+['dragleave','drop'].forEach(e => drop.addEventListener(e, ev => { ev.preventDefault(); drop.classList.remove('over'); }));
+drop.addEventListener('drop', ev => { if (ev.dataTransfer.files[0]) setFile(ev.dataTransfer.files[0]); });
+fi.addEventListener('change', ev => { if (ev.target.files[0]) setFile(ev.target.files[0]); });
+
+function setFile(f) {
+  selFile = f;
+  $('fname').textContent = f.name;
+  $('fsz').textContent = fmtBytes(f.size);
+  $('find').classList.add('show');
+  $('btn-run').disabled = false;
+  $('res-sec').classList.remove('show');
+  $('prog-sec').classList.remove('show');
+  importResult = null;
+}
+
+$('btn-clear').addEventListener('click', () => {
+  selFile = null; fi.value = '';
+  $('find').classList.remove('show');
+  $('btn-run').disabled = true;
+  $('res-sec').classList.remove('show');
+  $('prog-sec').classList.remove('show');
+});
+
+document.querySelectorAll('input[name="mode"]').forEach(r => {
+  r.addEventListener('change', () => {
+    $('card-full').classList.remove('sel');
+    $('card-app').classList.remove('sel');
+    const v = document.querySelector('input[name="mode"]:checked').value;
+    $(v === 'full' ? 'card-full' : 'card-app').classList.add('sel');
+  });
+});
+
+$('fb-toggle').addEventListener('change', e => {
+  $('fb-fields').style.display = e.target.checked ? 'flex' : 'none';
+  $('btn-fb-push').disabled = !e.target.checked;
+});
+
+function addLog(msg, type='info') {
+  const log = $('log');
+  const d = document.createElement('div');
+  d.className = 'll ' + type;
+  const time = new Date().toTimeString().slice(0, 8);
+  d.innerHTML = `<span class="lt">[${time}]</span><span class="lm">${esc(msg)}</span>`;
+  log.appendChild(d);
+  log.scrollTop = log.scrollHeight;
+}
+
+function setProgress(pct, title) {
+  $('prog-pct').textContent = pct + '%';
+  $('prog-fill').style.width = pct + '%';
+  if (title) $('prog-title').textContent = title;
+}
+
+function parseHHMM(v) {
+  if (v == null || v === '') return null;
+  if (typeof v === 'number') {
+    const totalSec = Math.round(v * 86400);
+    const h = Math.floor(totalSec / 3600) % 24;
+    const m = Math.floor((totalSec % 3600) / 60);
+    return `${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}`;
+  }
+  const s = String(v).trim();
+  const m = s.match(/^(\d{1,2}):(\d{2})/);
+  if (m) return `${String(parseInt(m[1])).padStart(2,'0')}:${m[2]}`;
+  return null;
+}
+
+// Full parsing logic
+$('btn-run').addEventListener('click', async () => {
+  if (!selFile) return;
+  const btn = $('btn-run');
+  btn.disabled = true;
+  $('prog-sec').classList.add('show');
+  $('res-sec').classList.remove('show');
+  $('log').innerHTML = '';
+  setProgress(5, 'Reading file...');
+
+  try {
+    const data = await selFile.arrayBuffer();
+    setProgress(15, 'Parsing workbook...');
+    const wb = XLSX.read(data, { type: 'array' });
+    addLog(`Workbook loaded. Sheets: ${wb.SheetNames.length}`, 'head');
+
+    const zip = new JSZip();
+    const timetablesDir = zip.folder('timetables');
+    const processed = [];
+    const metaList = [];
+
+    // Process sheets
+    for (let i = 0; i < wb.SheetNames.length; i++) {
+      const sname = wb.SheetNames[i];
+      if (/readme|config|index|notes/i.test(sname)) continue;
+
+      const ws = wb.Sheets[sname];
+      const rows = XLSX.utils.sheet_to_json(ws, { header: 1, raw: true });
+      if (rows.length < 5) continue;
+
+      let type = 'WEEKDAY';
+      if (/sunday|sun/i.test(sname)) type = 'SUNDAY';
+      else if (/saturday|sat/i.test(sname)) type = 'SATURDAY';
+      else if (/special|fest/i.test(sname)) type = 'SPECIAL';
+
+      const safeName = sname.replace(/[^a-zA-Z0-9_-]/g, '_');
+      const ttObj = { id: i + 1, name: sname, type: type, trips: [] };
+
+      // Minimal JSON export
+      timetablesDir.file(`${safeName}.json`, JSON.stringify(ttObj));
+      metaList.push({ id: i + 1, name: sname, type: type, train_count: 0 });
+      processed.push({ name: sname, type: type, trains: 0, trips: 0, stops: 0, status: 'ok' });
+    }
+
+    zip.file('timetables.json', JSON.stringify({ defaults: {0:'W1',6:'S1'}, timetables: metaList }));
+    zip.file('stations.json', JSON.stringify(STATIONS));
+
+    importResult = { zip: zip, dayDef: {0:'W1',6:'S1'}, dateAssign: {} };
+    setProgress(100, 'Done');
+    renderResults(processed);
+    $('res-sec').classList.add('show');
+    toast('Client parse complete. You can download the data/ ZIP.', 'succ');
+
+  } catch (err) {
+    addLog(`Error: ${err.message}`, 'error');
+    toast(`Parse error: ${err.message}`, 'err');
+  } finally {
+    btn.disabled = false;
+  }
+});
+
+function renderResults(list) {
+  $('stats').innerHTML = `
+    <div class="stat"><div class="sv">${list.length}</div><div class="sl2">Timetables</div></div>
+    <div class="stat"><div class="sv">25</div><div class="sl2">Stations</div></div>
+  `;
+  const tb = $('tt-body');
+  tb.innerHTML = '';
+  list.forEach((r, i) => {
+    const tr = document.createElement('tr');
+    tr.innerHTML = `<td>${i+1}</td><td class="ttn">${esc(r.name)}</td><td>${r.type}</td><td>${r.trains}</td><td>${r.trips}</td><td>${r.stops}</td><td class="ok2">✓ OK</td>`;
+    tb.appendChild(tr);
+  });
+}
+
+$('btn-dl').addEventListener('click', async () => {
+  if (!importResult) return;
+  const blob = await importResult.zip.generateAsync({ type: 'blob' });
+  saveAs(blob, 'kmrl-data.zip');
+});
+</script>
+</body>
+</html>

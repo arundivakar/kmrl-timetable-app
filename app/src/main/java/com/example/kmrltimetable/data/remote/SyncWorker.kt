@@ -27,8 +27,16 @@ class SyncWorker(context: Context, params: WorkerParameters) : CoroutineWorker(c
     }
 
     override suspend fun doWork(): Result {
-        Log.d(TAG, "Starting timetable config sync...")
+        Log.d(TAG, "Starting timetable config and database sync...")
         val dao = AppDatabase.getDatabase(applicationContext).timetableDao()
+
+        // 0. OTA Timetable Database Sync from GitHub Pages
+        try {
+            val otaResult = OtaSyncManager.checkAndSync(applicationContext)
+            Log.d(TAG, "OTA Timetable sync result: $otaResult")
+        } catch (e: Exception) {
+            Log.w(TAG, "OTA Timetable sync error: ${e.message}")
+        }
 
         return try {
             // 1. Fetch remote config version

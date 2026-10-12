@@ -3,13 +3,37 @@ import json
 import os
 import shutil
 
-def export_data(db_path="app/src/main/assets/kmrl_timetable.db", output_dir="web/data"):
+SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
+PROJECT_ROOT = os.path.dirname(SCRIPT_DIR)
+DEFAULT_DB_PATH = os.path.join(PROJECT_ROOT, "kmrl_timetable.db")
+ASSETS_DB_PATH = os.path.join(SCRIPT_DIR, "app", "src", "main", "assets", "kmrl_timetable.db")
+
+def export_data(db_path=None, output_dirs=None):
+    if db_path is None:
+        if os.path.exists(DEFAULT_DB_PATH):
+            db_path = DEFAULT_DB_PATH
+        elif os.path.exists(os.path.join(SCRIPT_DIR, "kmrl_timetable.db")):
+            db_path = os.path.join(SCRIPT_DIR, "kmrl_timetable.db")
+        elif os.path.exists(ASSETS_DB_PATH):
+            db_path = ASSETS_DB_PATH
+        else:
+            db_path = "kmrl_timetable.db"
+
+    if output_dirs is None:
+        output_dirs = [
+            os.path.join(SCRIPT_DIR, "web", "data"),
+            os.path.join(SCRIPT_DIR, "docs", "data"),
+        ]
+    elif isinstance(output_dirs, str):
+        output_dirs = [output_dirs]
+
     print(f"Opening database: {db_path}")
     if not os.path.exists(db_path):
         raise FileNotFoundError(f"Database file not found: {db_path}")
 
-    os.makedirs(output_dir, exist_ok=True)
-    timetables_dir = os.path.join(output_dir, "timetables")
+    primary_dir = output_dirs[0]
+    os.makedirs(primary_dir, exist_ok=True)
+    timetables_dir = os.path.join(primary_dir, "timetables")
     os.makedirs(timetables_dir, exist_ok=True)
 
     conn = sqlite3.connect(db_path)
@@ -21,7 +45,7 @@ def export_data(db_path="app/src/main/assets/kmrl_timetable.db", output_dir="web
         {"id": row[0], "code": row[1], "name": row[2], "sequence": row[3]}
         for row in cursor.fetchall()
     ]
-    with open(os.path.join(output_dir, "stations.json"), "w", encoding="utf-8") as f:
+    with open(os.path.join(primary_dir, "stations.json"), "w", encoding="utf-8") as f:
         json.dump(stations, f, separators=(",", ":"))
     print(f"Exported {len(stations)} stations to stations.json")
 
@@ -45,7 +69,7 @@ def export_data(db_path="app/src/main/assets/kmrl_timetable.db", output_dir="web
         })
         timetable_ids.append((tt_id, name))
 
-    with open(os.path.join(output_dir, "timetables.json"), "w", encoding="utf-8") as f:
+    with open(os.path.join(primary_dir, "timetables.json"), "w", encoding="utf-8") as f:
         json.dump({"defaults": day_defaults, "timetables": timetables_meta}, f, separators=(",", ":"))
     print(f"Exported {len(timetables_meta)} timetables metadata to timetables.json")
 
@@ -89,6 +113,19 @@ def export_data(db_path="app/src/main/assets/kmrl_timetable.db", output_dir="web
 
     print(f"Successfully exported {total_exported_schedules} timetable schedule files into {timetables_dir}")
     conn.close()
+
+    # Sync to any additional output directories (e.g. docs/data for GitHub Pages)
+    for other_dir in output_dirs[1:]:
+        if os.path.abspath(other_dir) != os.path.abspath(primary_dir):
+            os.makedirs(other_dir, exist_ok=True)
+            shutil.copytree(primary_dir, other_dir, dirs_exist_ok=True)
+            print(f"Synchronized web data -> {other_dir}")
+
+    return {
+        "stations": len(stations),
+        "timetables": len(timetables_meta),
+        "schedules": total_exported_schedules
+    }
 
 if __name__ == "__main__":
     export_data()

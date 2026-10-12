@@ -1,5 +1,6 @@
 package com.example.kmrltimetable.ui.admin
 
+import android.content.Context
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.kmrltimetable.data.local.TimetableDao
@@ -245,6 +246,105 @@ class AdminViewModel(private val dao: TimetableDao) : ViewModel() {
                 _uiState.value = _uiState.value.copy(
                     isLoading = false,
                     error = "Failed to remove: ${e.message}"
+                )
+            }
+        }
+    }
+
+    fun deleteTimetable(timetable: TimetableEntity) {
+        viewModelScope.launch {
+            _uiState.value = _uiState.value.copy(isLoading = true, error = null)
+            try {
+                val assignedDays = _uiState.value.dayDefaults.filter { it.value == timetable.name }.keys
+                if (assignedDays.isNotEmpty()) {
+                    val daysStr = assignedDays.joinToString(", ") { dayIdx ->
+                        when(dayIdx) {
+                            0 -> "Monday"
+                            1 -> "Tuesday"
+                            2 -> "Wednesday"
+                            3 -> "Thursday"
+                            4 -> "Friday"
+                            5 -> "Saturday"
+                            6 -> "Sunday"
+                            else -> "Day $dayIdx"
+                        }
+                    }
+                    _uiState.value = _uiState.value.copy(
+                        isLoading = false,
+                        error = "Cannot delete '${timetable.name}': it is default for $daysStr. Change default first."
+                    )
+                    return@launch
+                }
+
+                withContext(Dispatchers.IO) {
+                    dao.deleteStopTimesForTimetable(timetable.id)
+                    dao.deleteTripsForTimetable(timetable.id)
+                    dao.deleteTimetable(timetable.id)
+                    dao.deleteOverridesForTimetable(timetable.name)
+                }
+
+                val updatedTimetables = withContext(Dispatchers.IO) { dao.getAllTimetables() }
+                _uiState.value = _uiState.value.copy(
+                    isLoading = false,
+                    timetables = updatedTimetables,
+                    successMessage = "✅ Timetable '${timetable.name}' deleted successfully"
+                )
+            } catch (e: Exception) {
+                _uiState.value = _uiState.value.copy(
+                    isLoading = false,
+                    error = "Failed to delete: ${e.message}"
+                )
+            }
+        }
+    }
+
+    fun reloadBundledDatabase(context: Context) {
+        viewModelScope.launch {
+            _uiState.value = _uiState.value.copy(isLoading = true, error = null)
+            try {
+                withContext(Dispatchers.IO) {
+                    com.example.kmrltimetable.data.local.AppDatabase.forceReloadFromAssets(context)
+                }
+                loadAdminData()
+                _uiState.value = _uiState.value.copy(
+                    isLoading = false,
+                    successMessage = "✅ Database successfully reloaded from bundled assets!"
+                )
+            } catch (e: Exception) {
+                _uiState.value = _uiState.value.copy(
+                    isLoading = false,
+                    error = "Failed to reload: ${e.message}"
+                )
+            }
+        }
+    }
+
+    fun syncFromCloud(context: Context, force: Boolean = false) {
+        viewModelScope.launch {
+            _uiState.value = _uiState.value.copy(isLoading = true, error = null)
+            try {
+                val result = withContext(Dispatchers.IO) {
+                    com.example.kmrltimetable.data.remote.OtaSyncManager.checkAndSync(context, force = force)
+                }
+                when (result) {
+                    is com.example.kmrltimetable.data.remote.OtaSyncResult.Success -> {
+                        loadAdminData()
+                        _uiState.value = _uiState.value.copy(
+                            isLoading = false,
+                            successMessage = "✅ ${result.message}"
+                        )
+                    }
+                    is com.example.kmrltimetable.data.remote.OtaSyncResult.Error -> {
+                        _uiState.value = _uiState.value.copy(
+                            isLoading = false,
+                            error = "OTA Sync Failed: ${result.message}"
+                        )
+                    }
+                }
+            } catch (e: Exception) {
+                _uiState.value = _uiState.value.copy(
+                    isLoading = false,
+                    error = "Failed to sync: ${e.message}"
                 )
             }
         }
