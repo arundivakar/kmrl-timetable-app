@@ -452,12 +452,33 @@ def parse_timetable_sheet(reader: XlsxFastReader, sheet_name: str, timetable_id:
     }
 
 def get_timetable_name_from_file(xlsx_path: str, reader: XlsxFastReader) -> str:
+    # 1. Look for explicit 'Time Table - <NAME>' where NAME starts with digits (KMRL format, e.g. 13FEST_201026_MRP1)
     for s in reader.shared_strings:
-        m = re.search(r'Time\s*Table[-\s:]+([A-Za-z0-9_]+)', s, re.IGNORECASE)
+        m = re.search(r'Time\s*Table\s*[-:]\s*(\d+[A-Za-z0-9_]+)', s, re.IGNORECASE)
         if m:
             return m.group(1).strip()
+
+    # 2. Look for explicit 'Time Table - <NAME>' where separator is strictly hyphen or colon (not whitespace)
+    for s in reader.shared_strings:
+        m = re.search(r'Time\s*Table\s*[-:]\s*([A-Za-z0-9_]+)', s, re.IGNORECASE)
+        if m:
+            cand = m.group(1).strip()
+            if cand.lower() not in ('in', 'for', 'of', 'and', 'the', 'summary', 'default', 'sheet'):
+                return cand
+
+    # 3. Look for any string that matches KMRL timetable code format (e.g. 13FEST_..., 16W..., 14S...)
+    for s in reader.shared_strings:
+        m = re.search(r'\b(\d{2}[A-Za-z0-9_]{3,})\b', s)
+        if m:
+            cand = m.group(1).strip()
+            if not cand.startswith('00'):
+                return cand
+
+    # 4. Fallback to cleaned filename (stripping out download copy indicators like ' (1)', ' (2)', etc.)
     base = os.path.splitext(os.path.basename(xlsx_path))[0]
-    return base.strip()
+    cleaned = re.sub(r'[\s_]*\(\d+\)$', '', base).strip()
+    cleaned = re.sub(r'[\s_]*-\s*copy(\s*\(\d+\))?$', '', cleaned, flags=re.I).strip()
+    return cleaned
 
 def is_single_timetable_workbook(reader: XlsxFastReader) -> Tuple[bool, Optional[str]]:
     # Look for a sheet named 'Timetable' or similar
@@ -491,6 +512,11 @@ def main():
         print("SINGLE TIMETABLE IMPORT MODE (Appending/Updating DB)")
         print("="*60)
         
+        # Ensure DB exists from assets if DB_PATH does not exist
+        if not os.path.exists(DB_PATH) and os.path.exists(APP_ASSETS_DB_PATH):
+            shutil.copy2(APP_ASSETS_DB_PATH, DB_PATH)
+            print(f"Initialized working DB from assets ({APP_ASSETS_DB_PATH})")
+
         # Connect to DB without dropping existing data
         conn = sqlite3.connect(DB_PATH)
         conn.execute("PRAGMA foreign_keys = ON")
@@ -511,13 +537,14 @@ def main():
         print(f"\n[2] Target Timetable: '{tt_name}' (type={tt_type}, train_count={tc})")
         print(f"    Source sheet: '{single_sheet}'")
         
-        # Clean up any previous records for this timetable name
-        old_ids = [r[0] for r in conn.execute("SELECT id FROM timetables WHERE name=?", (tt_name,)).fetchall()]
+        # Clean up any previous records for this timetable name AND clean up any bogus 'in' entry
+        old_ids = [r[0] for r in conn.execute("SELECT id FROM timetables WHERE name IN (?, 'in')", (tt_name,)).fetchall()]
         for old_id in old_ids:
             conn.execute("DELETE FROM stop_times WHERE trip_id IN (SELECT id FROM trips WHERE timetable_id=?)", (old_id,))
             conn.execute("DELETE FROM trips WHERE timetable_id=?", (old_id,))
             conn.execute("DELETE FROM timetables WHERE id=?", (old_id,))
         if old_ids:
+            print(f"    Removed previous/corrupted records for '{tt_name}' (IDs: {old_ids}).")
             print(f"    Removed previous version of '{tt_name}'.")
 
         cur = conn.execute(

@@ -10,12 +10,12 @@ ASSETS_DB_PATH = os.path.join(SCRIPT_DIR, "app", "src", "main", "assets", "kmrl_
 
 def export_data(db_path=None, output_dirs=None):
     if db_path is None:
-        if os.path.exists(DEFAULT_DB_PATH):
-            db_path = DEFAULT_DB_PATH
-        elif os.path.exists(os.path.join(SCRIPT_DIR, "kmrl_timetable.db")):
+        if os.path.exists(os.path.join(SCRIPT_DIR, "kmrl_timetable.db")):
             db_path = os.path.join(SCRIPT_DIR, "kmrl_timetable.db")
         elif os.path.exists(ASSETS_DB_PATH):
             db_path = ASSETS_DB_PATH
+        elif os.path.exists(DEFAULT_DB_PATH):
+            db_path = DEFAULT_DB_PATH
         else:
             db_path = "kmrl_timetable.db"
 
@@ -111,6 +111,16 @@ def export_data(db_path=None, output_dirs=None):
             }, f, separators=(",", ":"))
         total_exported_schedules += 1
 
+    # Remove any stale timetable files (e.g. invalid 'in.json')
+    valid_filenames = {
+        "".join(c for c in name.strip() if c.isalnum() or c in ("-", "_", ".")) + ".json"
+        for _, name in timetable_ids
+    }
+    for existing_file in os.listdir(timetables_dir):
+        if existing_file.endswith(".json") and existing_file not in valid_filenames:
+            os.remove(os.path.join(timetables_dir, existing_file))
+            print(f"Removed stale schedule file: {existing_file}")
+
     print(f"Successfully exported {total_exported_schedules} timetable schedule files into {timetables_dir}")
     conn.close()
 
@@ -118,6 +128,12 @@ def export_data(db_path=None, output_dirs=None):
     for other_dir in output_dirs[1:]:
         if os.path.abspath(other_dir) != os.path.abspath(primary_dir):
             os.makedirs(other_dir, exist_ok=True)
+            other_tt_dir = os.path.join(other_dir, "timetables")
+            if os.path.exists(other_tt_dir):
+                for existing_file in os.listdir(other_tt_dir):
+                    if existing_file.endswith(".json") and existing_file not in valid_filenames:
+                        os.remove(os.path.join(other_tt_dir, existing_file))
+                        print(f"Removed stale schedule file from {other_dir}: {existing_file}")
             shutil.copytree(primary_dir, other_dir, dirs_exist_ok=True)
             print(f"Synchronized web data -> {other_dir}")
 
