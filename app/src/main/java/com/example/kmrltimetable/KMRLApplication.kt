@@ -9,8 +9,10 @@ import java.util.concurrent.TimeUnit
 
 class KMRLApplication : Application() {
 
-    val database by lazy { AppDatabase.getDatabase(this) }
-    val repository by lazy { TimetableRepository(database.timetableDao()) }
+    val database: AppDatabase
+        get() = AppDatabase.getDatabase(this)
+    val repository: TimetableRepository
+        get() = TimetableRepository(database.timetableDao())
 
     override fun onCreate() {
         super.onCreate()

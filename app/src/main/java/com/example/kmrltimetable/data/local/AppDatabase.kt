@@ -111,6 +111,16 @@ abstract class AppDatabase : RoomDatabase() {
                 if (shmFile.exists()) shmFile.delete()
 
                 newFile.copyTo(dbFile, overwrite = true)
+
+                // Re-open and assign new instance immediately so existing process sees the new data
+                val instance = Room.databaseBuilder(
+                    context.applicationContext,
+                    AppDatabase::class.java,
+                    DB_NAME
+                )
+                .fallbackToDestructiveMigration()
+                .build()
+                INSTANCE = instance
             }
         }
 

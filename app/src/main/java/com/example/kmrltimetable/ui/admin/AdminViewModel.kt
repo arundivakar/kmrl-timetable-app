@@ -3,6 +3,7 @@ package com.example.kmrltimetable.ui.admin
 import android.content.Context
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.example.kmrltimetable.data.local.AppDatabase
 import com.example.kmrltimetable.data.local.TimetableDao
 import com.example.kmrltimetable.data.local.entity.DayDefaultEntity
 import com.example.kmrltimetable.data.local.entity.ScheduleOverrideEntity
@@ -37,7 +38,7 @@ data class AdminUiState(
     val saturdayDefault: String? get() = dayDefaults[5]
 }
 
-class AdminViewModel(private val dao: TimetableDao) : ViewModel() {
+class AdminViewModel(private var dao: TimetableDao) : ViewModel() {
 
     private val _uiState = MutableStateFlow(AdminUiState())
     val uiState: StateFlow<AdminUiState> = _uiState.asStateFlow()
@@ -79,10 +80,13 @@ class AdminViewModel(private val dao: TimetableDao) : ViewModel() {
     // Data loading
     // -------------------------------------------------------------------------
 
-    fun loadAdminData() {
+    fun loadAdminData(context: Context? = null) {
         viewModelScope.launch {
             _uiState.value = _uiState.value.copy(isLoading = true, error = null)
             try {
+                if (context != null) {
+                    dao = AppDatabase.getDatabase(context).timetableDao()
+                }
                 // All DAO calls must run on IO dispatcher
                 val timetables = withContext(Dispatchers.IO) { dao.getAllTimetables() }
 
@@ -328,7 +332,8 @@ class AdminViewModel(private val dao: TimetableDao) : ViewModel() {
                 }
                 when (result) {
                     is com.example.kmrltimetable.data.remote.OtaSyncResult.Success -> {
-                        loadAdminData()
+                        dao = AppDatabase.getDatabase(context).timetableDao()
+                        loadAdminData(context)
                         _uiState.value = _uiState.value.copy(
                             isLoading = false,
                             successMessage = "✅ ${result.message}"

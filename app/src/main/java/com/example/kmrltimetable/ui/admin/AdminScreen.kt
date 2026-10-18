@@ -199,6 +199,7 @@ fun AdminDashboardScreen(
     isDarkMode: Boolean = false,
     onThemeToggle: () -> Unit = {}
 ) {
+    val context = androidx.compose.ui.platform.LocalContext.current
     var selectedTab by remember { mutableIntStateOf(0) }
     val tabs = listOf("Calendar", "Timetables", "Sync")
 
@@ -223,7 +224,7 @@ fun AdminDashboardScreen(
                             )
                         }
                     }
-                    IconButton(onClick = { viewModel.loadAdminData() }) {
+                    IconButton(onClick = { viewModel.loadAdminData(context) }) {
                         Icon(Icons.Default.Refresh, contentDescription = "Refresh", tint = Color.White)
                     }
                     IconButton(onClick = { viewModel.signOut() }) {
