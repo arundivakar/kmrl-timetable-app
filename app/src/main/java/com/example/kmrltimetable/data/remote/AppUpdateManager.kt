@@ -92,8 +92,19 @@ object AppUpdateManager {
 
             val rawTagName = json.optString("tag_name", "")
             val latestVersion = rawTagName.trimStart('v', 'V').trim()
-            val releaseTitle = json.optString("name", "Version $latestVersion")
-            val releaseNotes = json.optString("body", "Bug fixes and performance improvements.")
+            val rawName = if (json.isNull("name")) "" else json.optString("name", "")
+            val releaseTitle = if (rawName.isBlank() || rawName.equals("null", ignoreCase = true)) {
+                "KMRL Timetable v$latestVersion"
+            } else {
+                rawName
+            }
+
+            val rawBody = if (json.isNull("body")) "" else json.optString("body", "")
+            val releaseNotes = if (rawBody.isBlank() || rawBody.equals("null", ignoreCase = true)) {
+                "• Live train tracking as per timetable added\n• Direction-specific 25-station route timeline\n• Update push notifications & schedule disclaimer"
+            } else {
+                rawBody
+            }
             val htmlUrl = json.optString("html_url", "https://github.com/arundivakar/kmrl-timetable-app/releases")
             val publishedAt = json.optString("published_at", "")
 

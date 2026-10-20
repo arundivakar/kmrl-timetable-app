@@ -116,12 +116,13 @@ object NotificationHelper {
             null
         }
 
-        val releaseSnippet = updateInfo.releaseNotes
+        val cleanNotes = updateInfo.releaseNotes
             .lines()
-            .filter { it.isNotBlank() }
-            .take(4)
+            .map { it.replace("**", "").replace("###", "").trim() }
+            .filter { it.isNotBlank() && !it.equals("null", ignoreCase = true) }
+            .take(5)
             .joinToString("\n")
-            .ifBlank { "Tap to download and install the latest KMRL features." }
+            .ifBlank { "• Live tracking using timetable added\n• Direction-specific 25-station route timeline\n• Update push notifications & schedule disclaimer" }
 
         val notification = NotificationCompat.Builder(context, CHANNEL_ID_UPDATES)
             .setSmallIcon(R.drawable.ic_notification)
@@ -130,11 +131,11 @@ object NotificationHelper {
             }
             .setColor(0xFF009B8F.toInt())
             .setContentTitle("KMRL App Update Available (v${updateInfo.latestVersion})")
-            .setContentText("A new version is available. Tap to update.")
+            .setContentText("Live tracking using timetable added • Tap to update")
             .setStyle(
                 NotificationCompat.BigTextStyle()
                     .setBigContentTitle("KMRL App Update (v${updateInfo.latestVersion})")
-                    .bigText("${updateInfo.releaseTitle}\n\n$releaseSnippet")
+                    .bigText("What's New in v${updateInfo.latestVersion}:\n\n$cleanNotes")
             )
             .setPriority(NotificationCompat.PRIORITY_HIGH)
             .setCategory(NotificationCompat.CATEGORY_STATUS)

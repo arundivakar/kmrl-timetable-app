@@ -165,8 +165,10 @@ fun UpdateAvailableDialog(
                             .verticalScroll(rememberScrollState())
                             .padding(12.dp)
                     ) {
-                        val cleanedNotes = updateInfo.releaseNotes.ifBlank {
-                            "• Performance improvements and bug fixes."
+                        val cleanedNotes = if (updateInfo.releaseNotes.isBlank() || updateInfo.releaseNotes.equals("null", ignoreCase = true)) {
+                            "• Live tracking using timetable added\n• Direction-specific 25-station route timeline\n• Update push notifications & schedule disclaimer"
+                        } else {
+                            updateInfo.releaseNotes
                         }
                         Text(
                             text = cleanedNotes,
