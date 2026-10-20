@@ -5,6 +5,7 @@ import androidx.compose.ui.graphics.Color
 // --- KMRL BRANDING COLORS (LIGHT THEME) ---
 val KmrlTeal = Color(0xFF009B8F)
 val KmrlLime = Color(0xFF8CC63F)
+val KmrlOrange = Color(0xFFFF9800)
 val BgLight = Color(0xFFFFFFFF)
 val SurfaceLight = Color(0xFFF9F9F9)
 val BorderGrey = Color(0xFFE0E0E0)

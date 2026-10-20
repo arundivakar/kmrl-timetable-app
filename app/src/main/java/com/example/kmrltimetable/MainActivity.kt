@@ -30,6 +30,8 @@ import com.example.kmrltimetable.ui.admin.AdminScreen
 import com.example.kmrltimetable.ui.admin.AdminViewModel
 import com.example.kmrltimetable.ui.components.AboutAppDialog
 import com.example.kmrltimetable.ui.screens.FullTimetableScreen
+import com.example.kmrltimetable.ui.screens.LiveTrainTrackingScreen
+import com.example.kmrltimetable.ui.screens.LiveTrainTrackingViewModel
 import com.example.kmrltimetable.ui.screens.StationTimingsScreen
 import com.example.kmrltimetable.ui.screens.TodayScreen
 import com.example.kmrltimetable.ui.screens.TomorrowScreen
@@ -92,6 +94,7 @@ fun MainScreen(
     var selectedTab by remember { mutableStateOf(NavTab.TODAY) }
     var logoTapCount by remember { mutableIntStateOf(0) }
     var searchResultMode by remember { mutableStateOf(false) }
+    var trackingTrainNo by remember { mutableStateOf<String?>(null) }
     var showAboutDialog by remember { mutableStateOf(false) }
     var updateInfoToShow by remember { mutableStateOf<com.example.kmrltimetable.data.remote.AppUpdateInfo?>(null) }
 
@@ -123,9 +126,21 @@ fun MainScreen(
             }
         }
     )
+    val liveTrainViewModel: LiveTrainTrackingViewModel = viewModel(
+        factory = object : androidx.lifecycle.ViewModelProvider.Factory {
+            override fun <T : androidx.lifecycle.ViewModel> create(modelClass: Class<T>): T {
+                @Suppress("UNCHECKED_CAST")
+                return LiveTrainTrackingViewModel(app.repository) as T
+            }
+        }
+    )
 
     BackHandler(enabled = searchResultMode) {
         searchResultMode = false
+    }
+
+    BackHandler(enabled = trackingTrainNo != null) {
+        trackingTrainNo = null
     }
 
     if (searchResultMode) {
@@ -133,6 +148,14 @@ fun MainScreen(
             viewModel = viewModel,
             isTomorrow = selectedTab == NavTab.TOMORROW,
             onBack = { searchResultMode = false },
+            isDarkMode = isDarkMode,
+            onThemeToggle = onThemeToggle
+        )
+    } else if (trackingTrainNo != null) {
+        LiveTrainTrackingScreen(
+            viewModel = liveTrainViewModel,
+            trainNo = trackingTrainNo!!,
+            onBack = { trackingTrainNo = null },
             isDarkMode = isDarkMode,
             onThemeToggle = onThemeToggle
         )
@@ -199,6 +222,9 @@ fun MainScreen(
                         onStationTimingSearch = { station ->
                             selectedTab = NavTab.STATION
                             stationViewModel.selectStation(station)
+                        },
+                        onTrackTrainClick = { trainNo ->
+                            trackingTrainNo = trainNo
                         },
                         isDarkMode = isDarkMode,
                         onThemeToggle = onThemeToggle,

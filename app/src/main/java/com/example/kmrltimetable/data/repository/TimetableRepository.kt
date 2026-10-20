@@ -101,4 +101,212 @@ class TimetableRepository(
 
         return@withContext Triple(timetableName, upTrains, downTrains)
     }
+
+    suspend fun getAvailableTrainNumbers(currentDate: Date = Date()): List<String> = withContext(Dispatchers.IO) {
+        val timetableName = getEffectiveTimetableNameForDate(currentDate)
+        val timetable = dao.getTimetableByName(timetableName)
+            ?: dao.getAllTimetables().maxByOrNull { it.id }
+            ?: return@withContext emptyList()
+        dao.getAllTrainNumbers(timetable.id)
+    }
+
+    suspend fun getTrainTrackingData(
+        trainNoInput: String,
+        currentDate: Date = Date(),
+        timeStrOverride: String? = null
+    ): TrainTrackingData? = withContext(Dispatchers.IO) {
+        val cleanNo = trainNoInput.trim().trimStart('0')
+        if (cleanNo.isEmpty()) return@withContext null
+        val paddedNo = cleanNo.padStart(2, '0')
+
+        val timetableName = getEffectiveTimetableNameForDate(currentDate)
+        val timetable = dao.getTimetableByName(timetableName)
+            ?: dao.getAllTimetables().maxByOrNull { it.id }
+            ?: return@withContext null
+
+        val tripEntities = dao.getTripsForTrain(timetable.id, cleanNo, paddedNo)
+        if (tripEntities.isEmpty()) return@withContext null
+
+        val tripsWithStops = tripEntities.map { trip ->
+            val stops = dao.getStopsForTrip(trip.id, trip.direction)
+            TripWithStops(trip, stops)
+        }
+
+        val timeFormat = SimpleDateFormat("HH:mm:ss", Locale.US)
+        val currentTimeStr = timeStrOverride ?: timeFormat.format(currentDate)
+        val currentSec = parseSeconds(currentTimeStr)
+
+        // Find active trip or next trip
+        var activeIndex = -1
+        for (i in tripsWithStops.indices) {
+            val trip = tripsWithStops[i].trip
+            val sSec = parseSeconds(trip.startTime)
+            val eSec = parseSeconds(trip.endTime)
+            if (currentSec in sSec..eSec) {
+                activeIndex = i
+                break
+            }
+        }
+
+        // If no trip is currently in-transit, find next upcoming trip
+        if (activeIndex == -1) {
+            for (i in tripsWithStops.indices) {
+                val sSec = parseSeconds(tripsWithStops[i].trip.startTime)
+                if (currentSec < sSec) {
+                    activeIndex = i
+                    break
+                }
+            }
+        }
+
+        // If all trips for the day have finished, point to the last trip
+        if (activeIndex == -1) {
+            activeIndex = tripsWithStops.size - 1
+        }
+
+        val selectedTrip = tripsWithStops[activeIndex]
+        val liveLocation = calculateLiveLocation(selectedTrip, currentTimeStr)
+
+        TrainTrackingData(
+            trainNo = paddedNo,
+            timetableName = timetable.name,
+            trips = tripsWithStops,
+            activeTripIndex = activeIndex,
+            liveLocation = liveLocation
+        )
+    }
+
+    fun calculateLiveLocation(tripWithStops: TripWithStops, currentTimeStr: String): TrainLiveLocation {
+        val stops = tripWithStops.stops
+        val currentSec = parseSeconds(currentTimeStr)
+        val timedStops = stops.mapIndexed { idx, st -> Pair(idx, st) }.filter { it.second.departureTime != null }
+
+        if (timedStops.isEmpty()) {
+            return TrainLiveLocation(
+                statusText = "Schedule unavailable",
+                statusType = LiveStatusType.NOT_STARTED,
+                detailText = "No departure times found for this trip",
+                lastPassedIndex = 0,
+                nextUpcomingIndex = 0,
+                progressFraction = 0f
+            )
+        }
+
+        val firstStop = timedStops.first()
+        val lastStop = timedStops.last()
+        val startSec = parseSeconds(firstStop.second.departureTime)
+        val endSec = parseSeconds(lastStop.second.departureTime)
+
+        if (currentSec < startSec) {
+            val diffMins = ((startSec - currentSec) / 60).coerceAtLeast(1)
+            return TrainLiveLocation(
+                statusText = "Waiting at ${firstStop.second.stationName}",
+                statusType = LiveStatusType.WAITING_TERMINAL,
+                detailText = "Departs in ~$diffMins min (${firstStop.second.departureTime})",
+                lastPassedIndex = -1,
+                nextUpcomingIndex = firstStop.first,
+                progressFraction = 0f
+            )
+        }
+
+        if (currentSec > endSec) {
+            return TrainLiveLocation(
+                statusText = "Trip completed at ${lastStop.second.stationName}",
+                statusType = LiveStatusType.COMPLETED,
+                detailText = "Arrived at ${lastStop.second.departureTime}",
+                lastPassedIndex = lastStop.first,
+                nextUpcomingIndex = -1,
+                progressFraction = 1f
+            )
+        }
+
+        for (i in 0 until timedStops.size - 1) {
+            val s1 = timedStops[i]
+            val s2 = timedStops[i + 1]
+            val t1 = parseSeconds(s1.second.departureTime)
+            val t2 = parseSeconds(s2.second.departureTime)
+
+            if (currentSec in t1..t2) {
+                val span = (t2 - t1).coerceAtLeast(1)
+                val progress = (currentSec - t1).toFloat() / span.toFloat()
+
+                return if (currentSec - t1 <= 25) {
+                    TrainLiveLocation(
+                        statusText = "At ${s1.second.stationName}",
+                        statusType = LiveStatusType.AT_STATION,
+                        detailText = "Departing towards ${s2.second.stationName}",
+                        lastPassedIndex = s1.first,
+                        nextUpcomingIndex = s2.first,
+                        progressFraction = 0f
+                    )
+                } else if (t2 - currentSec <= 20) {
+                    TrainLiveLocation(
+                        statusText = "Arriving at ${s2.second.stationName}",
+                        statusType = LiveStatusType.IN_TRANSIT,
+                        detailText = "Next stop in < 1 min (${s2.second.departureTime})",
+                        lastPassedIndex = s1.first,
+                        nextUpcomingIndex = s2.first,
+                        progressFraction = progress
+                    )
+                } else {
+                    TrainLiveLocation(
+                        statusText = "Between ${s1.second.stationName} and ${s2.second.stationName}",
+                        statusType = LiveStatusType.IN_TRANSIT,
+                        detailText = "En route to ${s2.second.stationName} (${s2.second.departureTime})",
+                        lastPassedIndex = s1.first,
+                        nextUpcomingIndex = s2.first,
+                        progressFraction = progress
+                    )
+                }
+            }
+        }
+
+        return TrainLiveLocation(
+            statusText = "In transit",
+            statusType = LiveStatusType.IN_TRANSIT,
+            detailText = "Following schedule",
+            lastPassedIndex = 0,
+            nextUpcomingIndex = 1,
+            progressFraction = 0.5f
+        )
+    }
+
+    private fun parseSeconds(timeStr: String?): Int {
+        if (timeStr.isNullOrBlank()) return 0
+        val parts = timeStr.trim().split(":")
+        val h = parts.getOrNull(0)?.toIntOrNull() ?: 0
+        val m = parts.getOrNull(1)?.toIntOrNull() ?: 0
+        val s = parts.getOrNull(2)?.toIntOrNull() ?: 0
+        return h * 3600 + m * 60 + s
+    }
 }
+
+data class TrainLiveLocation(
+    val statusText: String,
+    val statusType: LiveStatusType,
+    val detailText: String,
+    val lastPassedIndex: Int,
+    val nextUpcomingIndex: Int,
+    val progressFraction: Float // 0f..1f
+)
+
+enum class LiveStatusType {
+    IN_TRANSIT,
+    AT_STATION,
+    WAITING_TERMINAL,
+    NOT_STARTED,
+    COMPLETED
+}
+
+data class TripWithStops(
+    val trip: com.example.kmrltimetable.data.local.entity.TrainTripInfo,
+    val stops: List<com.example.kmrltimetable.data.local.entity.TripStopDetail>
+)
+
+data class TrainTrackingData(
+    val trainNo: String,
+    val timetableName: String,
+    val trips: List<TripWithStops>,
+    val activeTripIndex: Int,
+    val liveLocation: TrainLiveLocation
+)

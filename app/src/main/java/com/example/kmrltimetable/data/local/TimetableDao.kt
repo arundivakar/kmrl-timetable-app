@@ -13,6 +13,8 @@ import com.example.kmrltimetable.data.local.entity.TimetableEntity
 import com.example.kmrltimetable.data.local.entity.TripEntity
 import com.example.kmrltimetable.data.local.entity.JourneyResult
 import com.example.kmrltimetable.data.local.entity.StationTrainResult
+import com.example.kmrltimetable.data.local.entity.TrainTripInfo
+import com.example.kmrltimetable.data.local.entity.TripStopDetail
 import kotlinx.coroutines.flow.Flow
 
 @Dao
@@ -137,5 +139,34 @@ interface TimetableDao {
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     fun upsertSyncMetadata(metadata: SyncMetadataEntity)
+
+    // ------ Live Train Tracking ------
+
+    @Query("""
+        SELECT t.id, t.train_no, t.direction, t.col_index,
+               (SELECT MIN(departure_time) FROM stop_times WHERE trip_id = t.id AND departure_time IS NOT NULL) as start_time,
+               (SELECT MAX(departure_time) FROM stop_times WHERE trip_id = t.id AND departure_time IS NOT NULL) as end_time
+        FROM trips t
+        WHERE t.timetable_id = :timetableId
+          AND (t.train_no = :trainNo OR t.train_no = :trainNoPadded)
+        ORDER BY start_time ASC
+    """)
+    fun getTripsForTrain(timetableId: Int, trainNo: String, trainNoPadded: String): List<TrainTripInfo>
+
+    @Query("""
+        SELECT 
+            s.id as station_id,
+            s.name as station_name,
+            s.code as station_code,
+            s.sequence as sequence,
+            st.departure_time as departure_time
+        FROM stations s
+        LEFT JOIN stop_times st ON s.id = st.station_id AND st.trip_id = :tripId
+        ORDER BY CASE WHEN :direction = 'UP' THEN s.sequence ELSE -s.sequence END ASC
+    """)
+    fun getStopsForTrip(tripId: Int, direction: String): List<TripStopDetail>
+
+    @Query("SELECT DISTINCT train_no FROM trips WHERE timetable_id = :timetableId ORDER BY CAST(train_no AS INTEGER) ASC")
+    fun getAllTrainNumbers(timetableId: Int): List<String>
 }
 

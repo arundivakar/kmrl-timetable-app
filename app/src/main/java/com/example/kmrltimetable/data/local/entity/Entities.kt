@@ -90,3 +90,22 @@ data class SyncMetadataEntity(
     val key: String,
     val value: String?
 )
+
+/** One trip made by a specific train rake in the timetable */
+data class TrainTripInfo(
+    val id: Int,
+    @ColumnInfo(name = "train_no") val trainNo: String,
+    val direction: String,
+    @ColumnInfo(name = "col_index") val colIndex: Int,
+    @ColumnInfo(name = "start_time") val startTime: String?,
+    @ColumnInfo(name = "end_time") val endTime: String?
+)
+
+/** Station stop on a specific trip, with scheduled departure time */
+data class TripStopDetail(
+    @ColumnInfo(name = "station_id") val stationId: Int,
+    @ColumnInfo(name = "station_name") val stationName: String,
+    @ColumnInfo(name = "station_code") val stationCode: String,
+    val sequence: Int,
+    @ColumnInfo(name = "departure_time") val departureTime: String?
+)
