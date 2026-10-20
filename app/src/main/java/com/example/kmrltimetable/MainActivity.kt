@@ -1,9 +1,16 @@
 package com.example.kmrltimetable
 
+import android.Manifest
+import android.content.pm.PackageManager
+import android.os.Build
 import android.os.Bundle
 import androidx.activity.ComponentActivity
+import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.viewModels
+import androidx.core.content.ContextCompat
+import com.example.kmrltimetable.util.NotificationHelper
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
@@ -99,12 +106,32 @@ fun MainScreen(
     var updateInfoToShow by remember { mutableStateOf<com.example.kmrltimetable.data.remote.AppUpdateInfo?>(null) }
 
     val context = androidx.compose.ui.platform.LocalContext.current
+    val activity = context as? ComponentActivity
+    val intent = activity?.intent
 
-    // Auto-check for updates on launch
+    // Request notification permission on Android 13+ (API 33+)
+    val notificationPermissionLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestPermission()
+    ) { isGranted ->
+        android.util.Log.d("MainActivity", "Notification permission granted: $isGranted")
+    }
+
+    // Auto-check for updates and request permissions on launch
     LaunchedEffect(Unit) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            if (ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
+                notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+            }
+        }
+
         val info = com.example.kmrltimetable.data.remote.AppUpdateManager.checkForUpdate(context)
-        if (info != null && info.isUpdateAvailable && com.example.kmrltimetable.data.remote.AppUpdateManager.shouldPromptForUpdate(context, info.latestVersion)) {
-            updateInfoToShow = info
+        if (info != null && info.isUpdateAvailable) {
+            val fromNotification = intent?.getBooleanExtra("EXTRA_OPEN_UPDATE", false) == true
+            if (fromNotification || com.example.kmrltimetable.data.remote.AppUpdateManager.shouldPromptForUpdate(context, info.latestVersion)) {
+                updateInfoToShow = info
+            }
+            // Ensure notification is displayed in notification bar if not already notified
+            NotificationHelper.showAppUpdateNotification(context, info)
         }
     }
 

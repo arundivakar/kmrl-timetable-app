@@ -12,6 +12,7 @@ import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.DarkMode
 import androidx.compose.material.icons.filled.LightMode
 import androidx.compose.material.icons.filled.Menu
+import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.outlined.CalendarToday
 import androidx.compose.material.icons.outlined.DirectionsSubway
 import androidx.compose.material.icons.outlined.Info
@@ -280,6 +281,52 @@ fun AboutAppDialog(
                                 color = KmrlTeal
                             )
                         }
+                    }
+                }
+
+                // Test Push Notification Row
+                var notifSentMsg by remember { mutableStateOf<String?>(null) }
+                Card(
+                    colors = CardDefaults.cardColors(
+                        containerColor = MaterialTheme.colorScheme.background
+                    ),
+                    shape = RoundedCornerShape(10.dp),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable {
+                            val sent = com.example.kmrltimetable.util.NotificationHelper.sendTestNotification(context)
+                            notifSentMsg = if (sent) "Notification sent to tray!" else "Check app notification permission."
+                        }
+                ) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth().padding(12.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            modifier = Modifier.weight(1f, fill = false)
+                        ) {
+                            Icon(
+                                Icons.Filled.Notifications,
+                                contentDescription = null,
+                                tint = KmrlTeal,
+                                modifier = Modifier.size(18.dp)
+                            )
+                            Text(
+                                text = notifSentMsg ?: "Test Push Notification",
+                                fontSize = 13.sp,
+                                fontWeight = FontWeight.Medium,
+                                color = if (notifSentMsg != null) KmrlTeal else MaterialTheme.colorScheme.onSurface
+                            )
+                        }
+                        Text(
+                            "Test",
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = KmrlTeal
+                        )
                     }
                 }
 

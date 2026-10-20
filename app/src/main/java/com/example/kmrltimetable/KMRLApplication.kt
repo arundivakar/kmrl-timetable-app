@@ -5,6 +5,8 @@ import androidx.work.*
 import com.example.kmrltimetable.data.local.AppDatabase
 import com.example.kmrltimetable.data.remote.SyncWorker
 import com.example.kmrltimetable.data.repository.TimetableRepository
+import com.example.kmrltimetable.util.KMRLFirebaseMessagingService
+import com.example.kmrltimetable.util.NotificationHelper
 import java.util.concurrent.TimeUnit
 
 class KMRLApplication : Application() {
@@ -16,6 +18,14 @@ class KMRLApplication : Application() {
 
     override fun onCreate() {
         super.onCreate()
+
+        // 1. Initialize Notification Channels for updates & schedules
+        NotificationHelper.createNotificationChannels(this)
+
+        // 2. Subscribe device to FCM topics for remote push alerts
+        KMRLFirebaseMessagingService.subscribeToTopics()
+
+        // 3. Schedule background sync & update worker
         scheduleSyncWorker()
     }
 

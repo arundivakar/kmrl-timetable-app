@@ -30,12 +30,32 @@ class SyncWorker(context: Context, params: WorkerParameters) : CoroutineWorker(c
         Log.d(TAG, "Starting timetable config and database sync...")
         val dao = AppDatabase.getDatabase(applicationContext).timetableDao()
 
-        // 0. OTA Timetable Database Sync from GitHub Pages
+        // 0a. OTA Timetable Database Sync from GitHub Pages
         try {
             val otaResult = OtaSyncManager.checkAndSync(applicationContext)
             Log.d(TAG, "OTA Timetable sync result: $otaResult")
+            if (otaResult is OtaSyncResult.Success && otaResult.updated) {
+                com.example.kmrltimetable.util.NotificationHelper.showTimetableUpdateNotification(
+                    context = applicationContext,
+                    timetableVersion = otaResult.version,
+                    message = otaResult.message
+                )
+            }
         } catch (e: Exception) {
             Log.w(TAG, "OTA Timetable sync error: ${e.message}")
+        }
+
+        // 0b. Background check for new app release on GitHub
+        try {
+            val appUpdateInfo = AppUpdateManager.checkForUpdate(applicationContext)
+            if (appUpdateInfo != null && appUpdateInfo.isUpdateAvailable) {
+                com.example.kmrltimetable.util.NotificationHelper.showAppUpdateNotification(
+                    context = applicationContext,
+                    updateInfo = appUpdateInfo
+                )
+            }
+        } catch (e: Exception) {
+            Log.w(TAG, "Background app update check error: ${e.message}")
         }
 
         return try {
