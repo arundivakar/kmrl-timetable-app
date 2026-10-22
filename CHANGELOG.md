@@ -5,6 +5,17 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ---
 
+## [v5.4.1] — 2026-10-22
+
+### 📱 Fixed & Enhanced — Lock Screen Alarm Wake-Up & Battery Optimization
+- **Lock Screen Full-Screen Alert**: Added `StationAlarmActivity` with `setShowWhenLocked(true)`, `setTurnScreenOn(true)`, and `requestDismissKeyguard()`. When the station assistance alarm triggers, the phone screen immediately turns ON and displays the emergency assistance alert directly over the lock screen.
+- **Hardware AlarmClock Scheduling**: Switched from standard idle alarms to `AlarmManager.setAlarmClock()`. This uses hardware RTC interrupts, ensuring Android Doze mode and aggressive OS battery saver never defer or throttle alarms when the phone is locked and sleeping.
+- **CPU Partial WakeLock During Alert**: `AlarmSoundPlayer` and `StationAlarmReceiver` now hold a dedicated `PARTIAL_WAKE_LOCK` while ringing. This guarantees that the ringtone and urgent vibration pattern never pause or stall while the display is locked.
+- **Full-Screen Notification Intent**: Attached `setFullScreenIntent()` to the high-priority alarm notification channel so Android System UI prioritizes displaying the alarm over any lock screen or heads-up interface.
+- **Battery Optimization Exemption Guidance**: Added 1-tap battery saver exemption button directly inside the Station Assistance Alarm dialog so users can unrestrict KMRL for guaranteed instant delivery.
+
+---
+
 ## [v5.4.0] — 2026-10-22
 
 ### 🚨 Added — Station Assistance Alarms

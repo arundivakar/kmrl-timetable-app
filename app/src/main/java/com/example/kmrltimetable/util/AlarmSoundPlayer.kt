@@ -5,6 +5,7 @@ import android.media.AudioAttributes
 import android.media.Ringtone
 import android.media.RingtoneManager
 import android.os.Build
+import android.os.PowerManager
 import android.os.VibrationEffect
 import android.os.Vibrator
 import android.os.VibratorManager
@@ -14,6 +15,7 @@ import android.util.Log
  * Audio and haptic alert player for KMRL Station Assistance Alarms.
  * Emits high-priority alarm sound and distinct vibration pattern so that platform security
  * and assistance staff hear the alert clearly in loud station environments.
+ * Holds a partial wake lock to guarantee audio and vibration continue even when screen is locked.
  */
 object AlarmSoundPlayer {
 
@@ -21,11 +23,17 @@ object AlarmSoundPlayer {
 
     private var currentRingtone: Ringtone? = null
     private var vibrator: Vibrator? = null
+    private var wakeLock: PowerManager.WakeLock? = null
 
     @Synchronized
     fun playAlarmSound(context: Context, vibrate: Boolean = true) {
         try {
             stopAlarmSound()
+
+            // Acquire CPU wake lock so playback continues even if screen is locked
+            val pm = context.getSystemService(Context.POWER_SERVICE) as? PowerManager
+            wakeLock = pm?.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "KMRL:AlarmSoundWakeLock")
+            wakeLock?.acquire(60_000L) // 60s max safety timeout
 
             // 1. Resolve loudest alarm uri (fallback to notification/ringtone if alarm not set)
             var alertUri = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_ALARM)
@@ -81,6 +89,12 @@ object AlarmSoundPlayer {
 
             vibrator?.cancel()
             vibrator = null
+
+            if (wakeLock?.isHeld == true) {
+                wakeLock?.release()
+            }
+            wakeLock = null
+
             Log.d(TAG, "Assistance alarm sound stopped.")
         } catch (e: Exception) {
             Log.e(TAG, "Error stopping alarm sound: ${e.message}", e)

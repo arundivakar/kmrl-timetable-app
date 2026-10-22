@@ -48,6 +48,11 @@ fun SetStationAlarmDialog(
     var customNoteInput by remember { mutableStateOf("") }
     var isCustomNote by remember { mutableStateOf(false) }
 
+    val context = androidx.compose.ui.platform.LocalContext.current
+    var isIgnoringBatteryOptimizations by remember {
+        mutableStateOf(com.example.kmrltimetable.util.StationAlarmManager.isIgnoringBatteryOptimizations(context))
+    }
+
     val platformText = if (direction == "UP") "Platform 1 (Towards Tripunithura)" else "Platform 2 (Towards Aluva)"
     val scheduledTimeFormatted = format12Hour(stop.departureTime)
 
@@ -312,6 +317,57 @@ fun SetStationAlarmDialog(
                             modifier = Modifier.fillMaxWidth(),
                             shape = RoundedCornerShape(10.dp)
                         )
+                    }
+                }
+
+                // Battery Saver / Optimization Notice
+                if (!isIgnoringBatteryOptimizations) {
+                    Surface(
+                        color = Color(0xFFFFF3E0),
+                        shape = RoundedCornerShape(10.dp),
+                        border = BorderStroke(1.dp, Color(0xFFFFB74D))
+                    ) {
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(10.dp)
+                        ) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(6.dp)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Warning,
+                                    contentDescription = null,
+                                    tint = Color(0xFFE65100),
+                                    modifier = Modifier.size(16.dp)
+                                )
+                                Text(
+                                    text = "Battery Saver / Sleep Notice",
+                                    fontSize = 11.5.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = Color(0xFFE65100)
+                                )
+                            }
+                            Spacer(Modifier.height(4.dp))
+                            Text(
+                                text = "To guarantee the alarm rings immediately even when your phone is locked or asleep, allow KMRL in Battery Optimization.",
+                                fontSize = 10.5.sp,
+                                color = Color(0xFF5D4037),
+                                lineHeight = 14.sp
+                            )
+                            Spacer(Modifier.height(6.dp))
+                            OutlinedButton(
+                                onClick = {
+                                    com.example.kmrltimetable.util.StationAlarmManager.requestIgnoreBatteryOptimization(context)
+                                },
+                                shape = RoundedCornerShape(6.dp),
+                                contentPadding = PaddingValues(horizontal = 10.dp, vertical = 2.dp),
+                                modifier = Modifier.height(28.dp)
+                            ) {
+                                Text("Allow Unrestricted Battery", fontSize = 10.5.sp, fontWeight = FontWeight.Bold, color = Color(0xFFE65100))
+                            }
+                        }
                     }
                 }
 

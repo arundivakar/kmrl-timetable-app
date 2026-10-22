@@ -377,6 +377,27 @@ object NotificationHelper {
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
 
+        // 3. Full-Screen Intent: Wake screen and launch StationAlarmActivity over Lock Screen
+        val fullScreenIntent = Intent(context, com.example.kmrltimetable.ui.screens.StationAlarmActivity::class.java).apply {
+            flags = Intent.FLAG_ACTIVITY_NEW_TASK or
+                    Intent.FLAG_ACTIVITY_CLEAR_TOP or
+                    Intent.FLAG_ACTIVITY_NO_USER_ACTION
+            putExtra(StationAlarmReceiver.EXTRA_ALARM_ID, alarmId)
+            putExtra(StationAlarmReceiver.EXTRA_TRAIN_NO, trainNo)
+            putExtra(StationAlarmReceiver.EXTRA_STATION_NAME, stationName)
+            putExtra(StationAlarmReceiver.EXTRA_STATION_CODE, stationCode)
+            putExtra(StationAlarmReceiver.EXTRA_MINUTES_BEFORE, minutesBefore)
+            putExtra(StationAlarmReceiver.EXTRA_NOTES, notes)
+            putExtra(StationAlarmReceiver.EXTRA_SCHEDULED_TIME, scheduledTime)
+            putExtra(StationAlarmReceiver.EXTRA_DIRECTION, direction)
+        }
+        val fullScreenPendingIntent = PendingIntent.getActivity(
+            context,
+            alarmId.hashCode() + 3,
+            fullScreenIntent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
+
         val largeIcon = try {
             BitmapFactory.decodeResource(context.resources, R.drawable.kmrl_logo)
         } catch (e: Exception) {
@@ -409,6 +430,8 @@ object NotificationHelper {
             .setStyle(NotificationCompat.BigTextStyle().bigText(bigText))
             .setPriority(NotificationCompat.PRIORITY_MAX)
             .setCategory(NotificationCompat.CATEGORY_ALARM)
+            .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
+            .setFullScreenIntent(fullScreenPendingIntent, true)
             .setAutoCancel(true)
             .setOngoing(true)
             .setContentIntent(contentPendingIntent)

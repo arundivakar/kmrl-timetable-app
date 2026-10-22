@@ -206,6 +206,13 @@ object AppUpdateManager {
     fun getChangelogForVersion(version: String): String {
         val clean = version.trim().trimStart('v', 'V')
         return when {
+            clean.startsWith("5.4.1") -> """
+                • Lock Screen Alarm Wake-Up: Alarms now wake up device from sleep and display over lock screen
+                • Hardware AlarmClock: Uses AlarmManager.setAlarmClock to prevent Doze/battery saver delays
+                • Full-Screen Alert: Dedicated lock screen alert with turnScreenOn & showWhenLocked
+                • CPU WakeLock: Guarantees continuous ringtone & vibration while screen is locked
+                • Battery Saver Guidance: 1-tap unrestrict option for 100% reliable alarms
+            """.trimIndent()
             clean.startsWith("5.4") -> """
                 • Station Assistance Alarms: Set alarms before reaching stations (e.g. at KLMT for VAKK) to dispatch platform security & assistance
                 • Audible Alarm & Haptic Alerts: Loud USAGE_ALARM sound and urgent vibration pattern
@@ -234,6 +241,20 @@ object AppUpdateManager {
      * Full version changelog history with release download URLs and metadata for the in-app releases section.
      */
     fun getChangelogHistory(): List<VersionChangelogEntry> = listOf(
+        VersionChangelogEntry(
+            version = "v5.4.1",
+            date = "22 October 2026",
+            title = "Lock Screen Alarm & Battery Saver Fix",
+            downloadUrl = "https://github.com/arundivakar/kmrl-timetable-app/releases/download/v5.4.1/KMRL_Timetable_v5.4.1_Release.apk",
+            releasePageUrl = "https://github.com/arundivakar/kmrl-timetable-app/releases/tag/v5.4.1",
+            changes = listOf(
+                "Lock Screen Alarm Wake-Up: Alarms now wake up device from sleep and display directly over lock screen",
+                "Hardware AlarmClock Interrupt: Uses AlarmManager.setAlarmClock to prevent Android Doze mode and battery saver from deferring alarms",
+                "Full-Screen Emergency Alert: Dedicated lock screen alert activity with turnScreenOn and showWhenLocked",
+                "CPU WakeLock: Keeps alarm ringtone playing and vibrating even when phone is locked",
+                "Battery Saver Guidance: 1-tap option to exclude KMRL from battery restrictions for 100% reliable alarms"
+            )
+        ),
         VersionChangelogEntry(
             version = "v5.4.0",
             date = "22 October 2026",

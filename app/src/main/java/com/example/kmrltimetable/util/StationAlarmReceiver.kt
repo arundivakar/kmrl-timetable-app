@@ -54,10 +54,25 @@ class StationAlarmReceiver : BroadcastReceiver() {
 
             Log.i("StationAlarmReceiver", "Station assistance alarm fired for Train $trainNo at $stationName ($stationCode)")
 
-            // 1. Play high-priority alarm sound and urgent vibration pattern
+            // 1. Wake up the device display immediately if sleeping/locked
+            try {
+                val powerManager = context.getSystemService(Context.POWER_SERVICE) as? android.os.PowerManager
+                @Suppress("DEPRECATION")
+                val screenWakeLock = powerManager?.newWakeLock(
+                    android.os.PowerManager.FULL_WAKE_LOCK or
+                    android.os.PowerManager.ACQUIRE_CAUSES_WAKEUP or
+                    android.os.PowerManager.ON_AFTER_RELEASE,
+                    "KMRL:StationAlarmReceiverWakeLock"
+                )
+                screenWakeLock?.acquire(15_000L) // 15s wake display
+            } catch (e: Exception) {
+                Log.w("StationAlarmReceiver", "Could not acquire screen wake lock: ${e.message}")
+            }
+
+            // 2. Play high-priority alarm sound and urgent vibration pattern (with CPU wake lock)
             AlarmSoundPlayer.playAlarmSound(context)
 
-            // 2. Dispatch heads-up notification with action buttons
+            // 3. Dispatch full-screen heads-up notification that shows over lock screen
             NotificationHelper.showStationAlarmNotification(
                 context = context,
                 alarmId = alarmId,
@@ -70,7 +85,27 @@ class StationAlarmReceiver : BroadcastReceiver() {
                 direction = direction
             )
 
-            // 3. Mark alarm as triggered in StationAlarmManager
+            // 4. Also launch full-screen lock screen activity directly
+            try {
+                val activityIntent = Intent(context, com.example.kmrltimetable.ui.screens.StationAlarmActivity::class.java).apply {
+                    flags = Intent.FLAG_ACTIVITY_NEW_TASK or
+                            Intent.FLAG_ACTIVITY_CLEAR_TOP or
+                            Intent.FLAG_ACTIVITY_NO_USER_ACTION
+                    putExtra(EXTRA_ALARM_ID, alarmId)
+                    putExtra(EXTRA_TRAIN_NO, trainNo)
+                    putExtra(EXTRA_STATION_NAME, stationName)
+                    putExtra(EXTRA_STATION_CODE, stationCode)
+                    putExtra(EXTRA_MINUTES_BEFORE, minutesBefore)
+                    putExtra(EXTRA_NOTES, notes)
+                    putExtra(EXTRA_SCHEDULED_TIME, scheduledTime)
+                    putExtra(EXTRA_DIRECTION, direction)
+                }
+                context.startActivity(activityIntent)
+            } catch (e: Exception) {
+                Log.d("StationAlarmReceiver", "Direct activity start bypassed in favor of fullScreenIntent: ${e.message}")
+            }
+
+            // 5. Mark alarm as triggered in StationAlarmManager
             StationAlarmManager.onAlarmTriggered(context, alarmId)
         }
     }

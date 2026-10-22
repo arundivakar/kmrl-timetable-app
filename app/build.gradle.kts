@@ -13,8 +13,8 @@ android {
         applicationId = "com.example.kmrltimetable"
         minSdk = 24
         targetSdk = 36
-        versionCode = 18
-        versionName = "5.4.0"
+        versionCode = 19
+        versionName = "5.4.1"
     }
 
     signingConfigs {

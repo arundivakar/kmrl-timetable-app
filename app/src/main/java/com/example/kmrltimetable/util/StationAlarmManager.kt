@@ -5,10 +5,14 @@ import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
 import android.content.SharedPreferences
+import android.net.Uri
 import android.os.Build
+import android.os.PowerManager
+import android.provider.Settings
 import android.util.Log
 import androidx.core.app.AlarmManagerCompat
 import com.example.kmrltimetable.data.model.StationAlarm
+import com.example.kmrltimetable.ui.screens.StationAlarmActivity
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -138,14 +142,29 @@ object StationAlarmManager {
             alarm.targetEpochMs
         }
 
+        val showIntent = Intent(context, StationAlarmActivity::class.java).apply {
+            flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
+            putExtra(StationAlarmReceiver.EXTRA_ALARM_ID, alarm.id)
+            putExtra(StationAlarmReceiver.EXTRA_TRAIN_NO, alarm.trainNo)
+            putExtra(StationAlarmReceiver.EXTRA_STATION_NAME, alarm.stationName)
+            putExtra(StationAlarmReceiver.EXTRA_STATION_CODE, alarm.stationCode)
+            putExtra(StationAlarmReceiver.EXTRA_MINUTES_BEFORE, alarm.minutesBefore)
+            putExtra(StationAlarmReceiver.EXTRA_NOTES, alarm.notes)
+            putExtra(StationAlarmReceiver.EXTRA_SCHEDULED_TIME, alarm.scheduledTime)
+            putExtra(StationAlarmReceiver.EXTRA_DIRECTION, alarm.direction)
+        }
+        val showPendingIntent = PendingIntent.getActivity(
+            context,
+            alarm.id.hashCode() + 2,
+            showIntent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
+
         try {
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-                AlarmManagerCompat.setExactAndAllowWhileIdle(
-                    alarmManager,
-                    AlarmManager.RTC_WAKEUP,
-                    triggerEpoch,
-                    pendingIntent
-                )
+            // Priority 1: setAlarmClock wakes up the device from deep sleep & Doze mode when screen is locked
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+                val alarmClockInfo = AlarmManager.AlarmClockInfo(triggerEpoch, showPendingIntent)
+                alarmManager.setAlarmClock(alarmClockInfo, pendingIntent)
             } else {
                 alarmManager.setExact(
                     AlarmManager.RTC_WAKEUP,
@@ -153,7 +172,7 @@ object StationAlarmManager {
                     pendingIntent
                 )
             }
-            Log.i(TAG, "Scheduled alarm ${alarm.id} for Train ${alarm.trainNo} at ${alarm.stationCode} in ${(triggerEpoch - now) / 1000}s")
+            Log.i(TAG, "Scheduled hardware AlarmClock for Train ${alarm.trainNo} at ${alarm.stationCode} in ${(triggerEpoch - now) / 1000}s")
 
             // Add to active list
             val current = _activeAlarms.value.filter { it.id != alarm.id }.toMutableList()
@@ -161,13 +180,22 @@ object StationAlarmManager {
             saveAlarms(context, current)
             return true
         } catch (e: SecurityException) {
-            Log.w(TAG, "Exact alarm permission restricted, falling back to inexact window: ${e.message}")
+            Log.w(TAG, "setAlarmClock restricted, falling back to setExactAndAllowWhileIdle: ${e.message}")
             try {
-                alarmManager.set(
-                    AlarmManager.RTC_WAKEUP,
-                    triggerEpoch,
-                    pendingIntent
-                )
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                    AlarmManagerCompat.setExactAndAllowWhileIdle(
+                        alarmManager,
+                        AlarmManager.RTC_WAKEUP,
+                        triggerEpoch,
+                        pendingIntent
+                    )
+                } else {
+                    alarmManager.set(
+                        AlarmManager.RTC_WAKEUP,
+                        triggerEpoch,
+                        pendingIntent
+                    )
+                }
                 val current = _activeAlarms.value.filter { it.id != alarm.id }.toMutableList()
                 current.add(alarm)
                 saveAlarms(context, current)
@@ -235,6 +263,43 @@ object StationAlarmManager {
         val cleanNo = trainNo.trim().trimStart('0')
         return _activeAlarms.value.firstOrNull {
             (it.trainNo.trimStart('0') == cleanNo) && it.stationCode.equals(stationCode, ignoreCase = true)
+        }
+    }
+
+    /**
+     * Checks if the app is excluded from Android battery saver optimizations.
+     * When unrestricted, Android will never throttle alarms even during deep sleep.
+     */
+    fun isIgnoringBatteryOptimizations(context: Context): Boolean {
+        val powerManager = context.getSystemService(Context.POWER_SERVICE) as? PowerManager ?: return true
+        return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+            powerManager.isIgnoringBatteryOptimizations(context.packageName)
+        } else {
+            true
+        }
+    }
+
+    /**
+     * Opens the system Battery Optimization settings or prompt so the user can allow KMRL unrestricted execution.
+     */
+    fun requestIgnoreBatteryOptimization(context: Context) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+            try {
+                val intent = Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS).apply {
+                    data = Uri.parse("package:${context.packageName}")
+                    flags = Intent.FLAG_ACTIVITY_NEW_TASK
+                }
+                context.startActivity(intent)
+            } catch (e: Exception) {
+                try {
+                    val intent = Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS).apply {
+                        flags = Intent.FLAG_ACTIVITY_NEW_TASK
+                    }
+                    context.startActivity(intent)
+                } catch (ex: Exception) {
+                    Log.e(TAG, "Cannot open battery optimization settings: ${ex.message}")
+                }
+            }
         }
     }
 }
