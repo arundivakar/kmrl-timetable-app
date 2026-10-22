@@ -31,6 +31,10 @@ object NotificationHelper {
     private const val CHANNEL_NAME = "KMRL Updates & Schedules"
     private const val CHANNEL_DESCRIPTION = "Alerts for new KMRL app versions, schedule updates, and service announcements."
 
+    const val CHANNEL_ID_ALARMS = "kmrl_assistance_alarms_channel"
+    private const val CHANNEL_NAME_ALARMS = "Station Assistance Alarms"
+    private const val CHANNEL_DESCRIPTION_ALARMS = "Urgent audible alarms when trains approach stations for platform passenger assistance."
+
     private const val NOTIF_ID_APP_UPDATE = 1001
     private const val NOTIF_ID_TIMETABLE_UPDATE = 1002
     private const val NOTIF_ID_TEST = 1099
@@ -51,7 +55,7 @@ object NotificationHelper {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             val notificationManager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
 
-            val channel = NotificationChannel(
+            val updateChannel = NotificationChannel(
                 CHANNEL_ID_UPDATES,
                 CHANNEL_NAME,
                 NotificationManager.IMPORTANCE_HIGH
@@ -62,9 +66,24 @@ object NotificationHelper {
                 enableVibration(true)
                 setShowBadge(true)
             }
+            notificationManager.createNotificationChannel(updateChannel)
 
-            notificationManager.createNotificationChannel(channel)
-            Log.d(TAG, "Notification channel $CHANNEL_ID_UPDATES created.")
+            val alarmChannel = NotificationChannel(
+                CHANNEL_ID_ALARMS,
+                CHANNEL_NAME_ALARMS,
+                NotificationManager.IMPORTANCE_HIGH
+            ).apply {
+                description = CHANNEL_DESCRIPTION_ALARMS
+                enableLights(true)
+                lightColor = 0xFFE65100.toInt() // Urgent Amber
+                enableVibration(true)
+                vibrationPattern = longArrayOf(0, 500, 250, 500, 250, 500, 250, 800)
+                setShowBadge(true)
+                lockscreenVisibility = android.app.Notification.VISIBILITY_PUBLIC
+            }
+            notificationManager.createNotificationChannel(alarmChannel)
+
+            Log.d(TAG, "Notification channels initialized.")
         }
     }
 
@@ -312,6 +331,115 @@ object NotificationHelper {
             ) == PackageManager.PERMISSION_GRANTED
         } else {
             NotificationManagerCompat.from(context).areNotificationsEnabled()
+        }
+    }
+
+    /**
+     * Shows a high-priority station assistance alarm notification with alarm sound & action buttons.
+     */
+    fun showStationAlarmNotification(
+        context: Context,
+        alarmId: String,
+        trainNo: String,
+        stationName: String,
+        stationCode: String,
+        minutesBefore: Int,
+        notes: String,
+        scheduledTime: String,
+        direction: String
+    ) {
+        if (!hasNotificationPermission(context)) return
+
+        val platformText = if (direction == "UP") "Platform 1 (Towards Tripunithura)" else "Platform 2 (Towards Aluva)"
+        val timingText = if (minutesBefore > 0) "Arriving in ~$minutesBefore min" else "Arriving Now"
+
+        // 1. Content Intent: Open MainActivity directly into Live Tracking for this train
+        val contentIntent = Intent(context, MainActivity::class.java).apply {
+            flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
+            putExtra("EXTRA_TRACK_TRAIN", trainNo)
+        }
+        val contentPendingIntent = PendingIntent.getActivity(
+            context,
+            alarmId.hashCode(),
+            contentIntent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
+
+        // 2. Action Intent: Dismiss / Stop Alarm
+        val dismissIntent = Intent(context, StationAlarmReceiver::class.java).apply {
+            action = StationAlarmReceiver.ACTION_DISMISS_ALARM
+            putExtra(StationAlarmReceiver.EXTRA_ALARM_ID, alarmId)
+        }
+        val dismissPendingIntent = PendingIntent.getBroadcast(
+            context,
+            alarmId.hashCode() + 1,
+            dismissIntent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
+
+        val largeIcon = try {
+            BitmapFactory.decodeResource(context.resources, R.drawable.kmrl_logo)
+        } catch (e: Exception) {
+            null
+        }
+
+        val bigText = buildString {
+            append("🚨 PASSENGER ASSISTANCE REQUIRED\n\n")
+            append("• Train: Train $trainNo ($direction Line)\n")
+            append("• Station: $stationName ($stationCode)\n")
+            append("• Platform: $platformText\n")
+            append("• Scheduled Departure: $scheduledTime\n")
+            append("• Estimated Arrival: $timingText\n")
+            if (notes.isNotBlank()) {
+                append("• Notes: $notes\n\n")
+            } else {
+                append("\n")
+            }
+            append("👉 Action: Alert platform security & staff to position on $platformText for passenger assistance.")
+        }
+
+        val notification = NotificationCompat.Builder(context, CHANNEL_ID_ALARMS)
+            .setSmallIcon(R.drawable.ic_notification)
+            .apply {
+                if (largeIcon != null) setLargeIcon(largeIcon)
+            }
+            .setColor(0xFFE65100.toInt()) // Urgent Amber
+            .setContentTitle("🚨 Assistance Alert: Train $trainNo ➔ $stationName ($stationCode)")
+            .setContentText("$timingText ($scheduledTime) • ${notes.ifBlank { "Platform assistance required" }}")
+            .setStyle(NotificationCompat.BigTextStyle().bigText(bigText))
+            .setPriority(NotificationCompat.PRIORITY_MAX)
+            .setCategory(NotificationCompat.CATEGORY_ALARM)
+            .setAutoCancel(true)
+            .setOngoing(true)
+            .setContentIntent(contentPendingIntent)
+            .addAction(
+                R.drawable.ic_notification,
+                "DISMISS & STOP SOUND",
+                dismissPendingIntent
+            )
+            .addAction(
+                R.drawable.ic_notification,
+                "VIEW TRACKER",
+                contentPendingIntent
+            )
+            .build()
+
+        try {
+            NotificationManagerCompat.from(context).notify(alarmId.hashCode(), notification)
+            Log.d(TAG, "Posted Station Alarm notification for $alarmId (Train $trainNo at $stationCode)")
+        } catch (e: SecurityException) {
+            Log.w(TAG, "SecurityException posting station alarm notification: ${e.message}")
+        }
+    }
+
+    /**
+     * Cancels an active station alarm notification.
+     */
+    fun dismissAlarmNotification(context: Context, alarmId: String) {
+        try {
+            NotificationManagerCompat.from(context).cancel(alarmId.hashCode())
+        } catch (e: Exception) {
+            Log.w(TAG, "Error dismissing alarm notification: ${e.message}")
         }
     }
 }

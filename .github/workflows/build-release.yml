@@ -4,6 +4,12 @@ on:
   push:
     tags:
       - 'v*'
+  workflow_dispatch:
+    inputs:
+      tag_name:
+        description: 'Release Tag (e.g. v5.4.0)'
+        required: false
+        default: 'v5.4.0'
 
 permissions:
   contents: write
@@ -15,6 +21,8 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Set up JDK 17
         uses: actions/setup-java@v4
@@ -28,16 +36,61 @@ jobs:
       - name: Grant execute permission for gradlew
         run: chmod +x gradlew
 
-      - name: Build Release APK
+      - name: Build Release APK & Copy to Releases
         run: |
           ./gradlew assembleRelease
-          cp app/build/outputs/apk/release/app-release.apk KMRL_Timetable_${{ github.ref_name }}_Release.apk
+          TAG_NAME="${{ github.ref_name }}"
+          if [ -z "$TAG_NAME" ] || [ "$TAG_NAME" = "main" ]; then
+            TAG_NAME="${{ github.event.inputs.tag_name }}"
+          fi
+          if [ -z "$TAG_NAME" ]; then
+            TAG_NAME="v5.4.0"
+          fi
+          echo "CURRENT_TAG=$TAG_NAME" >> $GITHUB_ENV
+          cp app/build/outputs/apk/release/app-release.apk "KMRL_Timetable_${TAG_NAME}_Release.apk"
+          cp app/build/outputs/apk/release/app-release.apk "releases/KMRL_Timetable_${TAG_NAME}_Release.apk"
+
+      - name: Extract Release Notes from CHANGELOG.md
+        run: |
+          python -c "
+          import re, os
+          tag = os.environ.get('CURRENT_TAG', 'v5.4.0')
+          clean_tag = tag.lstrip('v')
+          content = ''
+          if os.path.exists('CHANGELOG.md'):
+              with open('CHANGELOG.md', 'r', encoding='utf-8') as f:
+                  text = f.read()
+              pattern = r'##\s*\[v?' + re.escape(clean_tag) + r'\].*?\n(.*?)(?=\n##\s*\[|\Z)'
+              m = re.search(pattern, text, re.DOTALL)
+              if m:
+                  content = m.group(1).strip()
+          if not content:
+              content = '• Automated release for ' + tag + '\n• Full changelog details available in CHANGELOG.md'
+          with open('release_notes.md', 'w', encoding='utf-8') as f:
+              f.write(content)
+          "
+
+      - name: Commit Release APK to releases/
+        run: |
+          git config --local user.email "github-actions[bot]@users.noreply.github.com"
+          git config --local user.name "github-actions[bot]"
+          git add -A releases/
+          if git diff --staged --quiet; then
+            echo "No new APKs to commit in releases/"
+          else
+            git commit -m "chore(release): add ${CURRENT_TAG} build to releases/ [skip ci]"
+            git pull --rebase --autostash origin main || true
+            git push origin HEAD:main || true
+          fi
 
       - name: Create Release and Upload APK
         uses: softprops/action-gh-release@v2
         with:
-          files: KMRL_Timetable_${{ github.ref_name }}_Release.apk
-          name: KMRL Timetable ${{ github.ref_name }}
+          tag_name: ${{ env.CURRENT_TAG }}
+          files: KMRL_Timetable_${{ env.CURRENT_TAG }}_Release.apk
+          name: KMRL Timetable ${{ env.CURRENT_TAG }}
+          body_path: release_notes.md
+          generate_release_notes: true
           draft: false
           prerelease: false
         env:

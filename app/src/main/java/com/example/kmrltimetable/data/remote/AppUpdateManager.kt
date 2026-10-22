@@ -101,7 +101,7 @@ object AppUpdateManager {
 
             val rawBody = if (json.isNull("body")) "" else json.optString("body", "")
             val releaseNotes = if (rawBody.isBlank() || rawBody.equals("null", ignoreCase = true)) {
-                "• Live train tracking as per timetable added\n• Direction-specific 25-station route timeline\n• Update push notifications & schedule disclaimer"
+                getChangelogForVersion(latestVersion)
             } else {
                 rawBody
             }
@@ -167,6 +167,8 @@ object AppUpdateManager {
         }
     }
 
+    private const val KEY_SEEN_WHATS_NEW_VERSION = "key_seen_whats_new_version"
+
     /**
      * Determines whether the user should be prompted for this version.
      * False if the user already clicked "Later" for this specific version.
@@ -182,4 +184,128 @@ object AppUpdateManager {
     fun dismissUpdate(context: Context, latestVersion: String) {
         getPrefs(context).edit().putString(KEY_DISMISSED_VERSION, latestVersion).apply()
     }
+
+    /**
+     * Checks if the user has already acknowledged or seen the "What's New" prompt for this installed version.
+     */
+    fun hasSeenWhatsNew(context: Context, version: String): Boolean {
+        val seen = getPrefs(context).getString(KEY_SEEN_WHATS_NEW_VERSION, null)
+        return seen == version
+    }
+
+    /**
+     * Records that the user has seen the "What's New" notification for this version.
+     */
+    fun markWhatsNewSeen(context: Context, version: String) {
+        getPrefs(context).edit().putString(KEY_SEEN_WHATS_NEW_VERSION, version).apply()
+    }
+
+    /**
+     * Returns structured changelog notes for any version release.
+     */
+    fun getChangelogForVersion(version: String): String {
+        val clean = version.trim().trimStart('v', 'V')
+        return when {
+            clean.startsWith("5.4") -> """
+                • Station Assistance Alarms: Set alarms before reaching stations (e.g. at KLMT for VAKK) to dispatch platform security & assistance
+                • Audible Alarm & Haptic Alerts: Loud USAGE_ALARM sound and urgent vibration pattern
+                • 100x Faster Live Tracking: Optimized query loads active train schedule in <50ms
+                • Active Assistance Alarms Banner & Heads-up notification
+                • Full in-app changelog & automatic release distribution
+            """.trimIndent()
+            clean.startsWith("5.3") -> """
+                • Timetable-Based Live Train Tracker with 25-station route nodes
+                • Direction-specific UP & DOWN line routes (Aluva ➔ Tripunithura)
+                • Live status hero badge with real-time transit calculation
+                • Push notifications & schedule estimates disclaimer
+            """.trimIndent()
+            clean.startsWith("5.2") -> """
+                • Instant in-app database reload after OTA sync without app restart
+                • Updated October 2026 timetable schedules
+            """.trimIndent()
+            else -> """
+                • Performance improvements & bug fixes
+                • Updated KMRL metro timetables & station timings
+            """.trimIndent()
+        }
+    }
+
+    /**
+     * Full version changelog history with release download URLs and metadata for the in-app releases section.
+     */
+    fun getChangelogHistory(): List<VersionChangelogEntry> = listOf(
+        VersionChangelogEntry(
+            version = "v5.4.0",
+            date = "22 October 2026",
+            title = "Station Assistance Alarms & Speed",
+            downloadUrl = "https://github.com/arundivakar/kmrl-timetable-app/releases/download/v5.4.0/KMRL_Timetable_v5.4.0_Release.apk",
+            releasePageUrl = "https://github.com/arundivakar/kmrl-timetable-app/releases/tag/v5.4.0",
+            changes = listOf(
+                "Station Assistance Alarms: Set alarms 5m before arrival (e.g. at KLMT for VAKK) to arrange platform security & wheelchair assist",
+                "Audible alarm ringtone and urgent haptic vibration patterns",
+                "100x faster live tracking load (< 50ms) with optimized SQLite composite indices",
+                "Active Assistance Alarms Banner with 1-tap view & cancel",
+                "Full in-app changelog & automated release distribution"
+            )
+        ),
+        VersionChangelogEntry(
+            version = "v5.3.0",
+            date = "20 October 2026",
+            title = "Live Train Tracking & Push Alerts",
+            downloadUrl = "https://github.com/arundivakar/kmrl-timetable-app/releases/download/v5.3.0/KMRL_Timetable_v5.3.0_Release.apk",
+            releasePageUrl = "https://github.com/arundivakar/kmrl-timetable-app/releases/tag/v5.3.0",
+            changes = listOf(
+                "Timetable-based Live Train Tracker with 25-station route nodes",
+                "Direction-specific UP & DOWN line route views (Aluva ↔ Tripunithura)",
+                "Live status hero card with real-time transit indicators",
+                "Firebase Cloud Messaging (FCM) update alerts & background sync"
+            )
+        ),
+        VersionChangelogEntry(
+            version = "v5.2.0",
+            date = "12 October 2026",
+            title = "Sunday Timetable & Cloud OTA Sync",
+            downloadUrl = "https://github.com/arundivakar/kmrl-timetable-app/releases/download/v5.2.0/KMRL_Timetable_v5.2.0_Release.apk",
+            releasePageUrl = "https://github.com/arundivakar/kmrl-timetable-app/releases/tag/v5.2.0",
+            changes = listOf(
+                "Instant in-app database reload after OTA sync without app restart",
+                "Updated October 2026 timetable schedules (Weekday, Sunday, Festival)"
+            )
+        ),
+        VersionChangelogEntry(
+            version = "v5.1.0",
+            date = "23 September 2026",
+            title = "Material 3 Station Interchange",
+            downloadUrl = "https://github.com/arundivakar/kmrl-timetable-app/releases/download/v5.1.0/KMRL_Timetable_v5.1.0_Release.apk",
+            releasePageUrl = "https://github.com/arundivakar/kmrl-timetable-app/releases/tag/v5.1.0",
+            changes = listOf(
+                "Animated Material 3 station interchange button with 180° rotation",
+                "Clean Material Design 3 surface colors and visual tokens"
+            )
+        ),
+        VersionChangelogEntry(
+            version = "v5.0.0",
+            date = "02 September 2026",
+            title = "Universal Dark Theme & Small Footprint",
+            downloadUrl = "https://github.com/arundivakar/kmrl-timetable-app/releases/download/v5.0.0/KMRL_Timetable_v5.0.0_Release.apk",
+            releasePageUrl = "https://github.com/arundivakar/kmrl-timetable-app/releases/tag/v5.0.0",
+            changes = listOf(
+                "Universal Light & Dark theme toggle with persistent storage",
+                "Modular architecture and 75% smaller APK footprint"
+            )
+        )
+    )
+
+    fun getLatestVersionEntry(): VersionChangelogEntry {
+        return getChangelogHistory().first()
+    }
 }
+
+data class VersionChangelogEntry(
+    val version: String,
+    val date: String,
+    val title: String = "",
+    val changes: List<String>,
+    val downloadUrl: String = "",
+    val releasePageUrl: String = ""
+)

@@ -13,8 +13,8 @@ android {
         applicationId = "com.example.kmrltimetable"
         minSdk = 24
         targetSdk = 36
-        versionCode = 17
-        versionName = "5.3.0"
+        versionCode = 18
+        versionName = "5.4.0"
     }
 
     signingConfigs {
@@ -109,4 +109,18 @@ dependencies {
 
   // WorkManager
   implementation(libs.work.runtime.ktx)
+}
+
+val releaseVersionName = android.defaultConfig.versionName ?: "5.4.0"
+val targetReleasesDir = layout.projectDirectory.dir("../releases")
+
+tasks.register<Copy>("copyReleaseToReleases") {
+    from(layout.buildDirectory.dir("outputs/apk/release"))
+    include("app-release.apk")
+    into(targetReleasesDir)
+    rename("app-release.apk", "KMRL_Timetable_v${releaseVersionName}_Release.apk")
+}
+
+afterEvaluate {
+    tasks.findByName("assembleRelease")?.finalizedBy("copyReleaseToReleases")
 }

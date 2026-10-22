@@ -13,6 +13,7 @@ import androidx.compose.material.icons.filled.DarkMode
 import androidx.compose.material.icons.filled.LightMode
 import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material.icons.filled.Notifications
+import androidx.compose.material.icons.filled.SystemUpdate
 import androidx.compose.material.icons.outlined.CalendarToday
 import androidx.compose.material.icons.outlined.DirectionsSubway
 import androidx.compose.material.icons.outlined.Info
@@ -43,7 +44,8 @@ fun HeaderBlock(
     isTomorrow: Boolean = false,
     isDarkMode: Boolean = false,
     onThemeToggle: () -> Unit = {},
-    onMenuClick: () -> Unit = {}
+    onMenuClick: () -> Unit = {},
+    onOpenReleases: () -> Unit = {}
 ) {
     Column(modifier = Modifier.fillMaxWidth()) {
         // App Bar Row
@@ -75,20 +77,31 @@ fun HeaderBlock(
                 Text(text = logoText, fontSize = 18.sp, letterSpacing = 0.5.sp)
             }
             
-            // Dynamic Theme Toggle Icon
-            IconButton(onClick = onThemeToggle) {
-                if (isDarkMode) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                // Releases & Updates Icon Button
+                IconButton(onClick = onOpenReleases) {
                     Icon(
-                        Icons.Filled.LightMode,
-                        contentDescription = "Switch to Light Mode",
-                        tint = Color(0xFFFFD54F)
+                        Icons.Default.SystemUpdate,
+                        contentDescription = "App Releases & Builds",
+                        tint = KmrlTeal
                     )
-                } else {
-                    Icon(
-                        Icons.Filled.DarkMode,
-                        contentDescription = "Switch to Dark Mode",
-                        tint = MaterialTheme.colorScheme.onBackground
-                    )
+                }
+
+                // Dynamic Theme Toggle Icon
+                IconButton(onClick = onThemeToggle) {
+                    if (isDarkMode) {
+                        Icon(
+                            Icons.Filled.LightMode,
+                            contentDescription = "Switch to Light Mode",
+                            tint = Color(0xFFFFD54F)
+                        )
+                    } else {
+                        Icon(
+                            Icons.Filled.DarkMode,
+                            contentDescription = "Switch to Dark Mode",
+                            tint = MaterialTheme.colorScheme.onBackground
+                        )
+                    }
                 }
             }
         }
@@ -282,6 +295,62 @@ fun AboutAppDialog(
                             )
                         }
                     }
+                }
+
+                // App Releases & Builds Row
+                var showReleasesDialog by remember { mutableStateOf(false) }
+                Card(
+                    colors = CardDefaults.cardColors(
+                        containerColor = MaterialTheme.colorScheme.background
+                    ),
+                    shape = RoundedCornerShape(10.dp),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable { showReleasesDialog = true }
+                ) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth().padding(12.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            Icon(
+                                Icons.Default.SystemUpdate,
+                                contentDescription = null,
+                                tint = KmrlTeal,
+                                modifier = Modifier.size(18.dp)
+                            )
+                            Column {
+                                Text(
+                                    text = "App Releases & Builds",
+                                    fontSize = 13.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = MaterialTheme.colorScheme.onSurface
+                                )
+                                Text(
+                                    text = "All version builds & change logs",
+                                    fontSize = 11.sp,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                        }
+                        Text(
+                            "View All",
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = KmrlTeal
+                        )
+                    }
+                }
+
+                if (showReleasesDialog) {
+                    AppReleasesDialog(
+                        currentVersion = currentVersion,
+                        onDismiss = { showReleasesDialog = false }
+                    )
                 }
 
                 // Test Push Notification Row

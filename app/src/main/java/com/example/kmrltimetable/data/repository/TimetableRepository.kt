@@ -5,6 +5,7 @@ import com.example.kmrltimetable.data.local.entity.ScheduleOverrideEntity
 import com.example.kmrltimetable.data.local.entity.StationEntity
 import com.example.kmrltimetable.data.local.entity.JourneyResult
 import com.example.kmrltimetable.data.local.entity.StationTrainResult
+import com.example.kmrltimetable.data.local.entity.TripStopDetail
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -127,19 +128,14 @@ class TimetableRepository(
         val tripEntities = dao.getTripsForTrain(timetable.id, cleanNo, paddedNo)
         if (tripEntities.isEmpty()) return@withContext null
 
-        val tripsWithStops = tripEntities.map { trip ->
-            val stops = dao.getStopsForTrip(trip.id, trip.direction)
-            TripWithStops(trip, stops)
-        }
-
         val timeFormat = SimpleDateFormat("HH:mm:ss", Locale.US)
         val currentTimeStr = timeStrOverride ?: timeFormat.format(currentDate)
         val currentSec = parseSeconds(currentTimeStr)
 
-        // Find active trip or next trip
+        // Find active trip or next trip from lightweight trip info (no N+1 queries!)
         var activeIndex = -1
-        for (i in tripsWithStops.indices) {
-            val trip = tripsWithStops[i].trip
+        for (i in tripEntities.indices) {
+            val trip = tripEntities[i]
             val sSec = parseSeconds(trip.startTime)
             val eSec = parseSeconds(trip.endTime)
             if (currentSec in sSec..eSec) {
@@ -150,8 +146,8 @@ class TimetableRepository(
 
         // If no trip is currently in-transit, find next upcoming trip
         if (activeIndex == -1) {
-            for (i in tripsWithStops.indices) {
-                val sSec = parseSeconds(tripsWithStops[i].trip.startTime)
+            for (i in tripEntities.indices) {
+                val sSec = parseSeconds(tripEntities[i].startTime)
                 if (currentSec < sSec) {
                     activeIndex = i
                     break
@@ -161,11 +157,23 @@ class TimetableRepository(
 
         // If all trips for the day have finished, point to the last trip
         if (activeIndex == -1) {
-            activeIndex = tripsWithStops.size - 1
+            activeIndex = tripEntities.size - 1
         }
 
-        val selectedTrip = tripsWithStops[activeIndex]
-        val liveLocation = calculateLiveLocation(selectedTrip, currentTimeStr)
+        // ULTRA-FAST LOAD: Fetch 25 stops ONLY for the active trip (1 single query instead of 30+ queries!)
+        val activeTrip = tripEntities[activeIndex]
+        val activeStops = dao.getStopsForTrip(activeTrip.id, activeTrip.direction)
+        val activeTripWithStops = TripWithStops(activeTrip, activeStops)
+
+        val tripsWithStops = tripEntities.mapIndexed { idx, trip ->
+            if (idx == activeIndex) {
+                activeTripWithStops
+            } else {
+                TripWithStops(trip, emptyList())
+            }
+        }
+
+        val liveLocation = calculateLiveLocation(activeTripWithStops, currentTimeStr)
 
         TrainTrackingData(
             trainNo = paddedNo,
@@ -174,6 +182,10 @@ class TimetableRepository(
             activeTripIndex = activeIndex,
             liveLocation = liveLocation
         )
+    }
+
+    suspend fun getStopsForTrip(tripId: Int, direction: String): List<TripStopDetail> = withContext(Dispatchers.IO) {
+        dao.getStopsForTrip(tripId, direction)
     }
 
     fun calculateLiveLocation(tripWithStops: TripWithStops, currentTimeStr: String): TrainLiveLocation {

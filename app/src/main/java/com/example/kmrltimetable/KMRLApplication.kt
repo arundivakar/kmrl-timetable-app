@@ -19,13 +19,16 @@ class KMRLApplication : Application() {
     override fun onCreate() {
         super.onCreate()
 
-        // 1. Initialize Notification Channels for updates & schedules
+        // 1. Initialize Notification Channels for updates, schedules & alarms
         NotificationHelper.createNotificationChannels(this)
 
-        // 2. Subscribe device to FCM topics for remote push alerts
+        // 2. Initialize Station Assistance Alarm Manager
+        com.example.kmrltimetable.util.StationAlarmManager.init(this)
+
+        // 3. Subscribe device to FCM topics for remote push alerts
         KMRLFirebaseMessagingService.subscribeToTopics()
 
-        // 3. Schedule background sync & update worker
+        // 4. Schedule background sync & update worker
         scheduleSyncWorker()
     }
 

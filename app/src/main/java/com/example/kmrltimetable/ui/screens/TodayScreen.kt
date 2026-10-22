@@ -32,6 +32,11 @@ fun TodayScreen(
     onFindTrainsClick: () -> Unit,
     onStationTimingSearch: (com.example.kmrltimetable.data.local.entity.StationEntity) -> Unit,
     onTrackTrainClick: (String) -> Unit = {},
+    availableUpdateInfo: com.example.kmrltimetable.data.remote.AppUpdateInfo? = null,
+    onViewUpdateChangelog: (com.example.kmrltimetable.data.remote.AppUpdateInfo) -> Unit = {},
+    whatsNewEntry: com.example.kmrltimetable.data.remote.VersionChangelogEntry? = null,
+    onDismissWhatsNew: () -> Unit = {},
+    onOpenReleases: () -> Unit = {},
     isDarkMode: Boolean = false,
     onThemeToggle: () -> Unit = {},
     onMenuClick: () -> Unit = {}
@@ -56,8 +61,30 @@ fun TodayScreen(
             isTomorrow = false,
             isDarkMode = isDarkMode,
             onThemeToggle = onThemeToggle,
-            onMenuClick = onMenuClick
+            onMenuClick = onMenuClick,
+            onOpenReleases = onOpenReleases
         )
+
+        // --- IN-APP UPDATE NOTIFICATION BANNER (When newer release build is on server) ---
+        availableUpdateInfo?.let { updateInfo ->
+            val context = androidx.compose.ui.platform.LocalContext.current
+            Spacer(modifier = Modifier.height(10.dp))
+            InAppUpdateAlertCard(
+                updateInfo = updateInfo,
+                onViewChangelogClick = { onViewUpdateChangelog(updateInfo) },
+                onUpdateClick = { openDownloadUrl(context, updateInfo.downloadUrl) }
+            )
+        }
+
+        // --- IN-APP WHAT'S NEW BANNER (When app was updated to new build) ---
+        if (availableUpdateInfo == null && whatsNewEntry != null) {
+            Spacer(modifier = Modifier.height(10.dp))
+            InAppWhatsNewCard(
+                entry = whatsNewEntry,
+                onViewAllClick = onOpenReleases,
+                onDismissClick = onDismissWhatsNew
+            )
+        }
 
         Spacer(modifier = Modifier.height(10.dp))
 

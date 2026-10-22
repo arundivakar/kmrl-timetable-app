@@ -19,20 +19,21 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.scale
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.kmrltimetable.data.local.entity.TripStopDetail
+import com.example.kmrltimetable.data.model.StationAlarm
 import com.example.kmrltimetable.data.repository.LiveStatusType
 import com.example.kmrltimetable.data.repository.TripWithStops
 import com.example.kmrltimetable.ui.theme.KmrlOrange
 import com.example.kmrltimetable.ui.theme.KmrlTeal
+import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -44,19 +45,32 @@ fun LiveTrainTrackingScreen(
     onThemeToggle: () -> Unit = {}
 ) {
     val uiState by viewModel.uiState.collectAsState()
+    val activeAlarms by viewModel.activeAlarms.collectAsState()
+    val triggeredAlarm by viewModel.triggeredAlarm.collectAsState()
     val listState = rememberLazyListState()
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    val snackbarHostState = remember { SnackbarHostState() }
+
+    var alarmTargetStop by remember { mutableStateOf<TripStopDetail?>(null) }
+    var selectedManageAlarm by remember { mutableStateOf<StationAlarm?>(null) }
 
     LaunchedEffect(trainNo) {
         viewModel.startTracking(trainNo)
     }
 
-    // Auto-scroll to current position when data loads
+    // Auto-scroll to current position when data loads (immediate scrollToItem avoids animation jank on low-end devices)
+    var hasAutoScrolled by remember { mutableStateOf(false) }
     LaunchedEffect(uiState.selectedTripIndex, uiState.liveLocation?.lastPassedIndex) {
         val targetIdx = uiState.liveLocation?.lastPassedIndex ?: 0
         if (targetIdx >= 0 && uiState.currentTrip?.stops?.isNotEmpty() == true) {
-            // Add offset for header items (+2 items before the station list)
             val scrollIdx = (targetIdx + 2).coerceIn(0, uiState.currentTrip!!.stops.size + 1)
-            listState.animateScrollToItem(scrollIdx)
+            if (!hasAutoScrolled) {
+                listState.scrollToItem(scrollIdx)
+                hasAutoScrolled = true
+            } else {
+                listState.animateScrollToItem(scrollIdx)
+            }
         }
     }
 
@@ -105,6 +119,7 @@ fun LiveTrainTrackingScreen(
                 colors = TopAppBarDefaults.topAppBarColors(containerColor = KmrlTeal)
             )
         },
+        snackbarHost = { SnackbarHost(snackbarHostState) },
         containerColor = MaterialTheme.colorScheme.background
     ) { paddingValues ->
         if (uiState.isLoading) {
@@ -174,6 +189,12 @@ fun LiveTrainTrackingScreen(
         } else {
             val tripWithStops = uiState.currentTrip
 
+            // Filter alarms relevant to this train
+            val cleanUiTrainNo = uiState.trainNo.trimStart('0')
+            val trainAlarms = activeAlarms.filter {
+                it.trainNo.trimStart('0') == cleanUiTrainNo
+            }
+
             LazyColumn(
                 state = listState,
                 modifier = Modifier
@@ -189,6 +210,17 @@ fun LiveTrainTrackingScreen(
                 // 2. Live Status Hero Card
                 item {
                     LiveHeroStatusCard(uiState = uiState)
+                }
+
+                // 2.5 Active Station Assistance Alarms Banner
+                if (trainAlarms.isNotEmpty()) {
+                    item {
+                        ActiveAssistanceAlarmsBanner(
+                            alarms = trainAlarms,
+                            onManageAlarm = { selectedManageAlarm = it },
+                            onCancelAlarm = { viewModel.cancelStationAlarm(context, it) }
+                        )
+                    }
                 }
 
                 // 3. Trips Selector Header
@@ -226,7 +258,7 @@ fun LiveTrainTrackingScreen(
                             letterSpacing = 1.sp
                         )
                         Text(
-                            "STATUS",
+                            "STATUS / ALARM",
                             style = MaterialTheme.typography.labelSmall,
                             fontWeight = FontWeight.Bold,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -255,6 +287,7 @@ fun LiveTrainTrackingScreen(
 
                         val isCurrentStation = isTrainAtStation && (index == lastPassedIdx)
                         val isBetweenThisAndNext = !isTrainAtStation && (index == lastPassedIdx && nextUpcomingIdx == index + 1)
+                        val matchingAlarm = trainAlarms.firstOrNull { it.stationCode.equals(stop.stationCode, ignoreCase = true) }
 
                         StationTimelineNodeItem(
                             stop = stop,
@@ -264,8 +297,152 @@ fun LiveTrainTrackingScreen(
                             isCurrentStation = isCurrentStation,
                             isBetweenThisAndNext = isBetweenThisAndNext,
                             trainNo = uiState.trainNo,
-                            direction = tripWithStops.trip.direction
+                            direction = tripWithStops.trip.direction,
+                            activeAlarm = matchingAlarm,
+                            onSetAlarmClick = { alarmTargetStop = stop },
+                            onManageAlarmClick = { selectedManageAlarm = matchingAlarm }
                         )
+                    }
+                }
+            }
+        }
+
+        // Dialog: Set Station Assistance Alarm
+        alarmTargetStop?.let { stop ->
+            SetStationAlarmDialog(
+                stop = stop,
+                trainNo = uiState.trainNo.ifBlank { trainNo },
+                direction = uiState.currentTrip?.trip?.direction ?: "UP",
+                onDismiss = { alarmTargetStop = null },
+                onConfirm = { minutesBefore, note ->
+                    val success = viewModel.setStationAlarm(context, stop, minutesBefore, note)
+                    alarmTargetStop = null
+                    if (success) {
+                        scope.launch {
+                            snackbarHostState.showSnackbar(
+                                "🚨 Assistance Alarm set for ${stop.stationName} (${stop.stationCode}) • ${minutesBefore}m before arrival."
+                            )
+                        }
+                    }
+                }
+            )
+        }
+
+        // Dialog: Manage or Cancel Existing Alarm
+        selectedManageAlarm?.let { alarm ->
+            ManageActiveAlarmDialog(
+                alarm = alarm,
+                onDismiss = { selectedManageAlarm = null },
+                onCancelAlarm = { alarmId ->
+                    viewModel.cancelStationAlarm(context, alarmId)
+                    selectedManageAlarm = null
+                    scope.launch {
+                        snackbarHostState.showSnackbar("Assistance alarm cancelled.")
+                    }
+                }
+            )
+        }
+
+        // Dialog: Urgent In-App Alert Dialog when alarm triggers
+        triggeredAlarm?.let { alarm ->
+            InAppAlarmTriggeredDialog(
+                alarm = alarm,
+                onAcknowledge = {
+                    viewModel.dismissTriggeredAlarm(context)
+                }
+            )
+        }
+    }
+}
+
+@Composable
+private fun ActiveAssistanceAlarmsBanner(
+    alarms: List<StationAlarm>,
+    onManageAlarm: (StationAlarm) -> Unit,
+    onCancelAlarm: (String) -> Unit
+) {
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp, vertical = 6.dp),
+        colors = CardDefaults.cardColors(containerColor = Color(0xFFFFF3E0)),
+        shape = RoundedCornerShape(12.dp),
+        border = BorderStroke(1.dp, Color(0xFFFFB74D))
+    ) {
+        Column(modifier = Modifier.padding(12.dp)) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(
+                        imageVector = Icons.Default.NotificationsActive,
+                        contentDescription = null,
+                        tint = Color(0xFFE65100),
+                        modifier = Modifier.size(18.dp)
+                    )
+                    Spacer(Modifier.width(8.dp))
+                    Text(
+                        text = "ACTIVE ASSISTANCE ALARMS (${alarms.size})",
+                        fontSize = 11.5.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = Color(0xFFE65100),
+                        letterSpacing = 0.5.sp
+                    )
+                }
+
+                Text(
+                    text = "Tap to view",
+                    fontSize = 10.5.sp,
+                    color = Color(0xFF8D6E63)
+                )
+            }
+
+            Spacer(Modifier.height(8.dp))
+
+            alarms.forEach { alarm ->
+                Surface(
+                    shape = RoundedCornerShape(8.dp),
+                    color = Color.White.copy(alpha = 0.75f),
+                    border = BorderStroke(1.dp, Color(0xFFFFCC80)),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(vertical = 3.dp)
+                        .clickable { onManageAlarm(alarm) }
+                ) {
+                    Row(
+                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = "${alarm.stationName} (${alarm.stationCode})",
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 13.sp,
+                                color = Color(0xFF3E2723)
+                            )
+                            Text(
+                                text = "Alerts ${alarm.minutesBefore}m before (${format12Hour(alarm.scheduledTime)}) • ${alarm.notes}",
+                                fontSize = 11.sp,
+                                color = Color(0xFF5D4037),
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                        }
+
+                        IconButton(
+                            onClick = { onCancelAlarm(alarm.id) },
+                            modifier = Modifier.size(28.dp)
+                        ) {
+                            Icon(
+                                Icons.Default.Close,
+                                contentDescription = "Cancel Alarm",
+                                tint = Color(0xFFD32F2F),
+                                modifier = Modifier.size(16.dp)
+                            )
+                        }
                     }
                 }
             }
@@ -485,7 +662,10 @@ private fun StationTimelineNodeItem(
     isCurrentStation: Boolean,
     isBetweenThisAndNext: Boolean,
     trainNo: String,
-    direction: String
+    direction: String,
+    activeAlarm: StationAlarm? = null,
+    onSetAlarmClick: () -> Unit = {},
+    onManageAlarmClick: () -> Unit = {}
 ) {
     val platformText = if (direction == "UP") "Platform 1" else "Platform 2"
     val timeFormatted = format12Hour(stop.departureTime)
@@ -596,38 +776,101 @@ private fun StationTimelineNodeItem(
                     )
                 }
 
-                // Station Status Label
-                when {
-                    isCurrentStation -> {
+                // Station Status & Assistance Alarm Badges
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    // Alarm Pill / Button
+                    if (activeAlarm != null) {
+                        // Highlighted Amber Active Alarm Badge
                         Surface(
                             shape = RoundedCornerShape(12.dp),
-                            color = KmrlTeal,
-                            shadowElevation = 2.dp
+                            color = Color(0xFFFFF3E0),
+                            border = BorderStroke(1.dp, Color(0xFFFFB74D)),
+                            modifier = Modifier.clickable { onManageAlarmClick() }
                         ) {
-                            Text(
-                                "AT STATION",
-                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp),
-                                color = Color.White,
-                                fontSize = 10.5.sp,
-                                fontWeight = FontWeight.Bold
-                            )
+                            Row(
+                                modifier = Modifier.padding(horizontal = 7.dp, vertical = 4.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Icon(
+                                    Icons.Default.NotificationsActive,
+                                    contentDescription = "Alarm Active",
+                                    tint = Color(0xFFE65100),
+                                    modifier = Modifier.size(13.dp)
+                                )
+                                Spacer(Modifier.width(3.dp))
+                                Text(
+                                    text = "${activeAlarm.minutesBefore}m Alert",
+                                    fontSize = 10.5.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = Color(0xFFE65100)
+                                )
+                            }
+                        }
+                    } else if (!isPassed && stop.departureTime != null) {
+                        // "Set Alert" Button
+                        Surface(
+                            shape = RoundedCornerShape(12.dp),
+                            color = MaterialTheme.colorScheme.surface,
+                            border = BorderStroke(1.dp, KmrlTeal.copy(alpha = 0.6f)),
+                            modifier = Modifier.clickable { onSetAlarmClick() }
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(horizontal = 7.dp, vertical = 4.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Icon(
+                                    Icons.Default.AddAlert,
+                                    contentDescription = "Set Assistance Alert",
+                                    tint = KmrlTeal,
+                                    modifier = Modifier.size(13.dp)
+                                )
+                                Spacer(Modifier.width(3.dp))
+                                Text(
+                                    text = "Alert",
+                                    fontSize = 10.5.sp,
+                                    fontWeight = FontWeight.SemiBold,
+                                    color = KmrlTeal
+                                )
+                            }
                         }
                     }
-                    isPassed -> {
-                        Text(
-                            "Passed",
-                            fontSize = 11.5.sp,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
-                            fontWeight = FontWeight.Medium
-                        )
-                    }
-                    else -> {
-                        Text(
-                            "Upcoming",
-                            fontSize = 11.5.sp,
-                            color = KmrlTeal,
-                            fontWeight = FontWeight.Medium
-                        )
+
+                    // Station Status Label
+                    when {
+                        isCurrentStation -> {
+                            Surface(
+                                shape = RoundedCornerShape(12.dp),
+                                color = KmrlTeal,
+                                shadowElevation = 2.dp
+                            ) {
+                                Text(
+                                    "AT STATION",
+                                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp),
+                                    color = Color.White,
+                                    fontSize = 10.5.sp,
+                                    fontWeight = FontWeight.Bold
+                                )
+                            }
+                        }
+                        isPassed -> {
+                            Text(
+                                "Passed",
+                                fontSize = 11.5.sp,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
+                                fontWeight = FontWeight.Medium
+                            )
+                        }
+                        else -> {
+                            Text(
+                                "Upcoming",
+                                fontSize = 11.5.sp,
+                                color = KmrlTeal,
+                                fontWeight = FontWeight.Medium
+                            )
+                        }
                     }
                 }
             }

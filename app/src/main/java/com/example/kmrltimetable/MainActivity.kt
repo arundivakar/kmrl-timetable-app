@@ -1,6 +1,7 @@
 package com.example.kmrltimetable
 
 import android.Manifest
+import android.content.Intent
 import android.content.pm.PackageManager
 import android.os.Build
 import android.os.Bundle
@@ -63,9 +64,16 @@ class MainActivity : ComponentActivity() {
         TimetableViewModelFactory(app.repository)
     }
 
+    private val trackTrainFromIntent = mutableStateOf<String?>(null)
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         WindowCompat.setDecorFitsSystemWindows(window, false)
+
+        val trainExtra = intent?.getStringExtra("EXTRA_TRACK_TRAIN")
+        if (!trainExtra.isNullOrBlank()) {
+            trackTrainFromIntent.value = trainExtra
+        }
 
         val themePrefs = ThemePreferences(this)
 
@@ -80,6 +88,8 @@ class MainActivity : ComponentActivity() {
                     MainScreen(
                         viewModel = viewModel,
                         isDarkMode = isDarkMode,
+                        initialTrackTrainNo = trackTrainFromIntent.value,
+                        onClearTrackTrainNo = { trackTrainFromIntent.value = null },
                         onThemeToggle = {
                             val newMode = !isDarkMode
                             isDarkMode = newMode
@@ -90,12 +100,23 @@ class MainActivity : ComponentActivity() {
             }
         }
     }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        val trainExtra = intent.getStringExtra("EXTRA_TRACK_TRAIN")
+        if (!trainExtra.isNullOrBlank()) {
+            trackTrainFromIntent.value = trainExtra
+        }
+    }
 }
 
 @Composable
 fun MainScreen(
     viewModel: TimetableViewModel,
     isDarkMode: Boolean,
+    initialTrackTrainNo: String? = null,
+    onClearTrackTrainNo: () -> Unit = {},
     onThemeToggle: () -> Unit
 ) {
     var selectedTab by remember { mutableStateOf(NavTab.TODAY) }
@@ -103,7 +124,17 @@ fun MainScreen(
     var searchResultMode by remember { mutableStateOf(false) }
     var trackingTrainNo by remember { mutableStateOf<String?>(null) }
     var showAboutDialog by remember { mutableStateOf(false) }
+    var showReleasesDialog by remember { mutableStateOf(false) }
     var updateInfoToShow by remember { mutableStateOf<com.example.kmrltimetable.data.remote.AppUpdateInfo?>(null) }
+    var detectedUpdateInfo by remember { mutableStateOf<com.example.kmrltimetable.data.remote.AppUpdateInfo?>(null) }
+    var whatsNewEntry by remember { mutableStateOf<com.example.kmrltimetable.data.remote.VersionChangelogEntry?>(null) }
+
+    LaunchedEffect(initialTrackTrainNo) {
+        if (!initialTrackTrainNo.isNullOrBlank()) {
+            trackingTrainNo = initialTrackTrainNo
+            onClearTrackTrainNo()
+        }
+    }
 
     val context = androidx.compose.ui.platform.LocalContext.current
     val activity = context as? ComponentActivity
@@ -124,8 +155,16 @@ fun MainScreen(
             }
         }
 
+        // 1. Check if current installed build has unseen What's New changelog
+        val currentVersion = com.example.kmrltimetable.data.remote.AppUpdateManager.getCurrentVersionName(context)
+        if (!com.example.kmrltimetable.data.remote.AppUpdateManager.hasSeenWhatsNew(context, currentVersion)) {
+            whatsNewEntry = com.example.kmrltimetable.data.remote.AppUpdateManager.getLatestVersionEntry()
+        }
+
+        // 2. Query GitHub Releases for new updates
         val info = com.example.kmrltimetable.data.remote.AppUpdateManager.checkForUpdate(context)
         if (info != null && info.isUpdateAvailable) {
+            detectedUpdateInfo = info
             val fromNotification = intent?.getBooleanExtra("EXTRA_OPEN_UPDATE", false) == true
             if (fromNotification || com.example.kmrltimetable.data.remote.AppUpdateManager.shouldPromptForUpdate(context, info.latestVersion)) {
                 updateInfoToShow = info
@@ -253,6 +292,15 @@ fun MainScreen(
                         onTrackTrainClick = { trainNo ->
                             trackingTrainNo = trainNo
                         },
+                        availableUpdateInfo = detectedUpdateInfo,
+                        onViewUpdateChangelog = { info -> updateInfoToShow = info },
+                        whatsNewEntry = whatsNewEntry,
+                        onDismissWhatsNew = {
+                            val curVer = com.example.kmrltimetable.data.remote.AppUpdateManager.getCurrentVersionName(context)
+                            com.example.kmrltimetable.data.remote.AppUpdateManager.markWhatsNewSeen(context, curVer)
+                            whatsNewEntry = null
+                        },
+                        onOpenReleases = { showReleasesDialog = true },
                         isDarkMode = isDarkMode,
                         onThemeToggle = onThemeToggle,
                         onMenuClick = { showAboutDialog = true }
@@ -294,6 +342,14 @@ fun MainScreen(
             onShowUpdate = { info ->
                 updateInfoToShow = info
             }
+        )
+    }
+
+    if (showReleasesDialog) {
+        val curVer = com.example.kmrltimetable.data.remote.AppUpdateManager.getCurrentVersionName(context)
+        com.example.kmrltimetable.ui.components.AppReleasesDialog(
+            currentVersion = curVer,
+            onDismiss = { showReleasesDialog = false }
         )
     }
 

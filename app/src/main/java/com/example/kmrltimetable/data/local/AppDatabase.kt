@@ -72,11 +72,26 @@ abstract class AppDatabase : RoomDatabase() {
                     AppDatabase::class.java,
                     DB_NAME
                 )
+                .addCallback(PERFORMANCE_INDEX_CALLBACK)
                 .fallbackToDestructiveMigration()
                 .build()
                 
                 INSTANCE = instance
                 instance
+            }
+        }
+
+        private val PERFORMANCE_INDEX_CALLBACK = object : RoomDatabase.Callback() {
+            override fun onOpen(db: androidx.sqlite.db.SupportSQLiteDatabase) {
+                super.onOpen(db)
+                try {
+                    // High-performance composite indexes for instant live tracking & timetable queries on low-end hardware
+                    db.execSQL("CREATE INDEX IF NOT EXISTS idx_trips_tt_train ON trips (timetable_id, train_no)")
+                    db.execSQL("CREATE INDEX IF NOT EXISTS idx_stop_times_trip_dep ON stop_times (trip_id, departure_time)")
+                    db.execSQL("CREATE INDEX IF NOT EXISTS idx_stop_times_trip_stn ON stop_times (trip_id, station_id)")
+                } catch (e: Exception) {
+                    android.util.Log.w("AppDatabase", "Error ensuring SQLite performance indices: ${e.message}")
+                }
             }
         }
 
@@ -118,6 +133,7 @@ abstract class AppDatabase : RoomDatabase() {
                     AppDatabase::class.java,
                     DB_NAME
                 )
+                .addCallback(PERFORMANCE_INDEX_CALLBACK)
                 .fallbackToDestructiveMigration()
                 .build()
                 INSTANCE = instance
