@@ -4,8 +4,8 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
   
-  <title>KMRL Train Finder | Kochi Metro Timetable</title>
-  <meta name="description" content="Live timetable, station reach times, arrival countdowns, and offline train finder for Kochi Metro Rail (KMRL).">
+  <title>KMRL Train Finder | Kochi Metro Timetable & Schedule</title>
+  <meta name="description" content="Official timetable, station departure timings, fare calculator, arrival countdowns, full schedules, and offline train finder for Kochi Metro Rail (KMRL).">
   
   <!-- PWA & Mobile Web App Meta Tags -->
   <link rel="manifest" href="manifest.json">
@@ -32,11 +32,12 @@
     <!-- Top App Bar -->
     <header class="top-bar">
       <div class="top-bar-content">
-        <button id="btn-info" class="icon-button" aria-label="App Info">
+        <button id="btn-info" class="icon-button" aria-label="App Info" title="App Info & Offline Status">
           <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="16" x2="12" y2="12"></line><line x1="12" y1="8" x2="12.01" y2="8"></line></svg>
         </button>
 
-        <div class="brand">
+        <!-- Brand / Secret 5-Tap Gesture Trigger -->
+        <div class="brand" id="brand-header" title="KMRL Train Finder">
           <img src="icons/favicon.png" alt="KMRL Logo" class="brand-logo" width="28" height="28">
           <div class="brand-text">
             <span class="brand-kmrl">KMRL</span>
@@ -44,10 +45,18 @@
           </div>
         </div>
 
-        <button id="btn-theme" class="icon-button" aria-label="Toggle Theme">
-          <svg id="theme-icon-moon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path></svg>
-          <svg id="theme-icon-sun" class="hidden" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="5"></circle><line x1="12" y1="1" x2="12" y2="3"></line><line x1="12" y1="21" x2="12" y2="23"></line><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line><line x1="1" y1="12" x2="3" y2="12"></line><line x1="21" y1="12" x2="23" y2="12"></line><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line></svg>
-        </button>
+        <div class="top-bar-actions">
+          <!-- App Releases & Builds Dialog Button -->
+          <button id="btn-releases" class="icon-button" aria-label="App Releases" title="App Releases & APK Builds">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
+          </button>
+
+          <!-- Light / Dark Mode Toggle -->
+          <button id="btn-theme" class="icon-button" aria-label="Toggle Theme" title="Toggle Light/Dark Theme">
+            <svg id="theme-icon-moon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path></svg>
+            <svg id="theme-icon-sun" class="hidden" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="5"></circle><line x1="12" y1="1" x2="12" y2="3"></line><line x1="12" y1="21" x2="12" y2="23"></line><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line><line x1="1" y1="12" x2="3" y2="12"></line><line x1="21" y1="12" x2="23" y2="12"></line><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line></svg>
+          </button>
+        </div>
       </div>
 
       <!-- Live Clock & Status Bar -->
@@ -60,8 +69,15 @@
     <!-- Main Scrollable Content Area -->
     <main class="main-content">
       
-      <!-- TAB 1: TODAY (Route Search) -->
+      <!-- TAB 1: TODAY (Route Search & Live Countdowns) -->
       <section id="tab-today" class="tab-pane active">
+        
+        <!-- Schedule Notice Disclaimer Card -->
+        <div class="disclaimer-card">
+          <svg class="disclaimer-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="16" x2="12" y2="12"></line><line x1="12" y1="8" x2="12.01" y2="8"></line></svg>
+          <span>Schedule Notice: All timings are computed from the active KMRL timetable. Timetables are subject to operational changes.</span>
+        </div>
+
         <!-- Active Schedule Pill -->
         <div class="schedule-pill" id="schedule-pill">
           <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect><line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line></svg>
@@ -73,15 +89,23 @@
           <div class="route-selectors">
             <!-- From Station -->
             <div class="station-select-box" id="box-from-station">
-              <span class="select-label">FROM STATION</span>
+              <span class="select-label">FROM SOURCE</span>
               <button id="btn-select-from" class="station-picker-btn">
                 <span id="from-station-name" class="station-title">Select Source</span>
                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"></polyline></svg>
               </button>
+              <!-- Quick Pick Pills (From) -->
+              <div class="quick-station-pills" id="quick-pills-from">
+                <button type="button" class="quick-pill" data-station-id="1">Aluva</button>
+                <button type="button" class="quick-pill" data-station-id="9">Edapally</button>
+                <button type="button" class="quick-pill" data-station-id="13">Kaloor</button>
+                <button type="button" class="quick-pill" data-station-id="17">Ernakulam S</button>
+                <button type="button" class="quick-pill" data-station-id="25">Tripunithura</button>
+              </div>
             </div>
 
             <!-- Swap Button -->
-            <button id="btn-swap-stations" class="btn-swap" aria-label="Swap Stations">
+            <button id="btn-swap-stations" class="btn-swap" aria-label="Swap Stations" title="Swap Source and Destination">
               <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
                 <path d="M7 17V3m0 0L3 7m4-4l4 4m6 4v14m0 0l4-4m-4 4l-4-4" />
               </svg>
@@ -94,7 +118,55 @@
                 <span id="to-station-name" class="station-title">Select Destination</span>
                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"></polyline></svg>
               </button>
+              <!-- Quick Pick Pills (To) -->
+              <div class="quick-station-pills" id="quick-pills-to">
+                <button type="button" class="quick-pill" data-station-id="25">Tripunithura</button>
+                <button type="button" class="quick-pill" data-station-id="17">Ernakulam S</button>
+                <button type="button" class="quick-pill" data-station-id="15">MG Road</button>
+                <button type="button" class="quick-pill" data-station-id="9">Edapally</button>
+                <button type="button" class="quick-pill" data-station-id="1">Aluva</button>
+              </div>
             </div>
+          </div>
+        </div>
+
+        <!-- Fare, Distance & Journey Summary Badge Card -->
+        <div id="journey-summary-card" class="journey-summary-card hidden">
+          <div class="summary-pills-row">
+            <div class="summary-badge fare-badge" id="fare-badge">
+              <span class="badge-icon">₹</span>
+              <span id="fare-val">-- Fare</span>
+            </div>
+            <div class="summary-badge distance-badge" id="distance-badge">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="3 11 22 2 13 21 11 13 3 11"></polygon></svg>
+              <span id="station-count-val">-- Stations</span>
+            </div>
+            <div class="summary-badge time-badge" id="duration-badge">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>
+              <span id="duration-val">-- min</span>
+            </div>
+          </div>
+          <div class="first-last-row" id="first-last-timings">
+            <span>First: <strong id="first-train-val">--:--</strong></span>
+            <span class="dot-separator">•</span>
+            <span>Last: <strong id="last-train-val">--:--</strong></span>
+          </div>
+        </div>
+
+        <!-- Date Selector Row (Today / Tomorrow / Pick Any Date) -->
+        <div class="card date-filter-card">
+          <div class="date-selector-header">
+            <span class="date-selector-title">TRAVEL DATE:</span>
+            <span class="active-date-display" id="active-date-display">Today</span>
+          </div>
+          <div class="date-chip-group">
+            <button id="chip-date-today" class="date-chip active">TODAY</button>
+            <button id="chip-date-tomorrow" class="date-chip">TOMORROW</button>
+            <label class="date-chip date-picker-label" id="chip-date-custom" title="Pick any calendar date">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect><line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line></svg>
+              <span>PICK DATE</span>
+              <input type="date" id="custom-date-input" class="hidden-date-input">
+            </label>
           </div>
         </div>
 
@@ -112,8 +184,8 @@
               <button id="chip-upcoming" class="filter-chip active">UPCOMING</button>
               <button id="chip-all-trains" class="filter-chip">ALL TRAINS</button>
             </div>
-            <div class="travel-time-badge" id="travel-time-badge">
-              Travel time: -- min
+            <div class="schedule-summary-tag" id="schedule-summary-tag">
+              Schedule: <span id="route-schedule-name">--</span>
             </div>
           </div>
 
@@ -133,14 +205,48 @@
             </button>
           </div>
 
-          <!-- Direction Toggle Bar -->
+          <!-- Quick Station Pills -->
+          <div class="quick-station-pills" id="quick-pills-station">
+            <button type="button" class="quick-pill active" data-station-id="1">Aluva</button>
+            <button type="button" class="quick-pill" data-station-id="6">Kalamassery</button>
+            <button type="button" class="quick-pill" data-station-id="9">Edapally</button>
+            <button type="button" class="quick-pill" data-station-id="13">Kaloor</button>
+            <button type="button" class="quick-pill" data-station-id="15">MG Road</button>
+            <button type="button" class="quick-pill" data-station-id="17">Ernakulam S</button>
+            <button type="button" class="quick-pill" data-station-id="20">Vyttila</button>
+            <button type="button" class="quick-pill" data-station-id="25">Tripunithura</button>
+          </div>
+
+          <!-- Day Toggle: Today vs Tomorrow (Matching APK) -->
+          <div class="segmented-control day-segmented" id="station-day-segmented">
+            <button id="btn-st-day-today" class="seg-btn active">TODAY</button>
+            <button id="btn-st-day-tomorrow" class="seg-btn">TOMORROW</button>
+          </div>
+
+          <!-- Direction Toggle Bar with Smart Terminal Labels -->
           <div class="segmented-control" id="direction-segmented">
             <button id="btn-dir-aluva" class="seg-btn active">ARRIVALS (AT ALVA)</button>
             <button id="btn-dir-tpht" class="seg-btn">DEPARTURES (TO TPHT)</button>
           </div>
 
+          <!-- Station Stats Row -->
+          <div class="station-stats-row">
+            <div class="station-stat-item">
+              <span class="stat-label">FIRST SERVICE</span>
+              <span class="stat-val" id="station-first-time">--:--</span>
+            </div>
+            <div class="station-stat-item">
+              <span class="stat-label">LAST SERVICE</span>
+              <span class="stat-val" id="station-last-time">--:--</span>
+            </div>
+            <div class="station-stat-item">
+              <span class="stat-label">TOTAL SERVICES</span>
+              <span class="stat-val" id="station-total-count">--</span>
+            </div>
+          </div>
+
           <!-- Filter chips for upcoming / all -->
-          <div class="filter-chips station-filters">
+          <div class="filter-chips station-filters" id="station-filters-bar">
             <button id="chip-st-upcoming" class="filter-chip active">UPCOMING</button>
             <button id="chip-st-all" class="filter-chip">ALL TRAINS</button>
           </div>
@@ -152,19 +258,83 @@
       <!-- TAB 3: TOMORROW -->
       <section id="tab-tomorrow" class="tab-pane">
         <div class="tomorrow-banner">
-          <div class="tomorrow-title">Tomorrow's Schedule</div>
-          <div class="tomorrow-date" id="tomorrow-date-str">--</div>
+          <div class="tomorrow-badge">TOMORROW'S TIMETABLE</div>
+          <div class="tomorrow-title" id="tomorrow-date-str">Loading Date...</div>
+          <div class="tomorrow-schedule-name" id="tomorrow-tt-name">Loading Schedule...</div>
         </div>
-        <div id="tomorrow-trains-list" class="trains-list">
-          <div class="empty-state">
-            <p>Select a route from the Today tab to view tomorrow's departures.</p>
+
+        <!-- Quick Route Header for Tomorrow -->
+        <div class="card route-card compact-route-card">
+          <div class="compact-route-info">
+            <div class="route-point">
+              <span class="point-label">FROM</span>
+              <strong id="tmrw-from-name">Aluva</strong>
+            </div>
+            <button id="btn-tmrw-swap" class="btn-swap-mini" title="Swap Route">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M7 17V3m0 0L3 7m4-4l4 4m6 4v14m0 0l4-4m-4 4l-4-4" /></svg>
+            </button>
+            <div class="route-point">
+              <span class="point-label">TO</span>
+              <strong id="tmrw-to-name">Tripunithura</strong>
+            </div>
           </div>
+          <div class="compact-summary-strip">
+            <span id="tmrw-fare-val">₹40 Fare</span> • 
+            <span id="tmrw-dur-val">~38 min</span> • 
+            <span id="tmrw-count-val">All Scheduled Services</span>
+          </div>
+        </div>
+
+        <div id="tomorrow-trains-list" class="trains-list"></div>
+      </section>
+
+      <!-- TAB 4: FULL TIMETABLE (Direct from APK FullTimetableScreen) -->
+      <section id="tab-full" class="tab-pane">
+        <div class="card full-tt-header-card">
+          <div class="full-tt-title-row">
+            <div class="full-tt-title">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="8" y1="6" x2="21" y2="6"></line><line x1="8" y1="12" x2="21" y2="12"></line><line x1="8" y1="18" x2="21" y2="18"></line><line x1="3" y1="6" x2="3.01" y2="6"></line><line x1="3" y1="12" x2="3.01" y2="12"></line><line x1="3" y1="18" x2="3.01" y2="18"></line></svg>
+              <span>FULL TIMETABLE</span>
+            </div>
+            <div class="full-tt-date" id="full-tt-date-display">Today</div>
+          </div>
+
+          <div class="route-visual-strip">
+            <div class="route-side source">
+              <span class="station-side-label">SOURCE</span>
+              <strong class="station-side-name" id="full-from-name">ALUVA</strong>
+            </div>
+            <div class="route-line-connector">
+              <span class="dots">•••••••</span>
+              <button id="btn-full-swap" class="btn-swap-mini" title="Swap Route">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M7 17V3m0 0L3 7m4-4l4 4m6 4v14m0 0l4-4m-4 4l-4-4" /></svg>
+              </button>
+              <span class="dots">•••••••</span>
+            </div>
+            <div class="route-side dest">
+              <span class="station-side-label">DESTINATION</span>
+              <strong class="station-side-name" id="full-to-name">TRIPUNITHURA</strong>
+            </div>
+          </div>
+
+          <div class="full-tt-meta-row">
+            <span id="full-tt-duration">Travel time: 38 min</span>
+            <span id="full-tt-total">Total Trains: --</span>
+            <span id="full-tt-schedule">Schedule: --</span>
+          </div>
+        </div>
+
+        <div id="full-trains-list" class="trains-list"></div>
+
+        <div class="timetable-footer-notice">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="16" x2="12" y2="12"></line><line x1="12" y1="8" x2="12.01" y2="8"></line></svg>
+          <span>Timetable shown is subject to change. Please check station announcements for latest operational updates.</span>
         </div>
       </section>
 
     </main>
 
-    <!-- Bottom Navigation Bar -->
+    <!-- Bottom Navigation Bar (4 Primary Tabs + Admin) -->
     <nav class="bottom-nav">
       <button class="nav-item active" data-tab="tab-today">
         <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path><polyline points="9 22 9 12 15 12 15 22"></polyline></svg>
@@ -180,39 +350,187 @@
         <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect><line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line></svg>
         <span>Tomorrow</span>
       </button>
+
+      <button class="nav-item" data-tab="tab-full">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="8" y1="6" x2="21" y2="6"></line><line x1="8" y1="12" x2="21" y2="12"></line><line x1="8" y1="18" x2="21" y2="18"></line><line x1="3" y1="6" x2="3.01" y2="6"></line><line x1="3" y1="12" x2="3.01" y2="12"></line><line x1="3" y1="18" x2="3.01" y2="18"></line></svg>
+        <span>Full</span>
+      </button>
+
+      <!-- Admin Tab (Revealed only after 5 rapid taps on KMRL logo) -->
+      <button class="nav-item hidden" id="nav-item-admin" data-tab="tab-admin">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect><path d="M7 11V7a5 5 0 0 1 10 0v4"></path></svg>
+        <span>Admin</span>
+      </button>
     </nav>
 
-    <!-- Station Selection Modal -->
-    <div id="modal-station-picker" class="modal-overlay hidden">
+    <!-- MODAL 1: Train Stoppages & Route Timeline Modal -->
+    <div id="modal-train-stops" class="modal-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="modal-train-title">
+      <div class="modal-card modal-large">
+        <div class="modal-header">
+          <div class="train-modal-branding">
+            <span class="train-badge-pill" id="modal-train-badge">TRAIN --</span>
+            <div class="train-modal-titles">
+              <h3 id="modal-train-title">Train Stops & Timings</h3>
+              <span class="train-modal-subtitle" id="modal-train-subtitle">-- Line • KMRL Kochi Metro</span>
+            </div>
+          </div>
+          <button id="btn-close-stops" class="icon-button" aria-label="Close Stoppage Details">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+          </button>
+        </div>
+
+        <div class="train-stops-summary-strip" id="modal-stops-summary">
+          <div class="stops-stat">
+            <span class="stat-caption">START DEP</span>
+            <strong id="modal-start-time">--:--</strong>
+          </div>
+          <div class="stops-stat">
+            <span class="stat-caption">TERMINAL ARR</span>
+            <strong id="modal-end-time">--:--</strong>
+          </div>
+          <div class="stops-stat">
+            <span class="stat-caption">STATIONS</span>
+            <strong id="modal-stops-count">--</strong>
+          </div>
+          <div class="stops-stat">
+            <span class="stat-caption">TOTAL DURATION</span>
+            <strong id="modal-total-duration">-- min</strong>
+          </div>
+        </div>
+
+        <div class="modal-body-scrollable">
+          <div class="timeline-container" id="timeline-container">
+            <!-- Dynamically populated vertical metro stop track -->
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- MODAL 2: Station Selection Modal -->
+    <div id="modal-station-picker" class="modal-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="modal-station-title">
       <div class="modal-card">
         <div class="modal-header">
           <h3 id="modal-station-title">Select Station</h3>
-          <button id="btn-close-modal" class="icon-button">
+          <button id="btn-close-modal" class="icon-button" aria-label="Close Station Picker">
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
           </button>
         </div>
         <div class="search-box">
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
           <input type="text" id="station-search-input" placeholder="Search station by name or code..." autocomplete="off">
+          <button id="btn-clear-station-search" class="icon-button hidden" aria-label="Clear Search">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+          </button>
         </div>
+
+        <!-- Major Hubs / Terminal Quick Picks -->
+        <div class="modal-quick-picks">
+          <span class="quick-pick-label">Major Hubs:</span>
+          <div class="quick-pick-chips" id="modal-quick-chips">
+            <button class="quick-chip" data-station-id="1">Aluva</button>
+            <button class="quick-chip" data-station-id="9">Edapally</button>
+            <button class="quick-chip" data-station-id="13">Kaloor</button>
+            <button class="quick-chip" data-station-id="15">MG Road</button>
+            <button class="quick-chip" data-station-id="17">Ernakulam South</button>
+            <button class="quick-chip" data-station-id="20">Vyttila</button>
+            <button class="quick-chip" data-station-id="25">Tripunithura</button>
+          </div>
+        </div>
+
         <div class="station-list" id="station-list-items"></div>
       </div>
     </div>
 
-    <!-- Info & iPhone Installation Modal -->
-    <div id="modal-info" class="modal-overlay hidden">
-      <div class="modal-card">
+    <!-- MODAL 3: App Releases, Builds & APK Downloads Modal -->
+    <div id="modal-releases" class="modal-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="modal-releases-title">
+      <div class="modal-card modal-large">
         <div class="modal-header">
           <div class="brand">
             <img src="icons/favicon.png" alt="Logo" class="brand-logo" width="28" height="28">
-            <h3>KMRL Train Finder</h3>
+            <h3 id="modal-releases-title">App Releases & Builds</h3>
           </div>
-          <button id="btn-close-info" class="icon-button">
+          <button id="btn-close-releases" class="icon-button" aria-label="Close Releases Modal">
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
           </button>
         </div>
 
-        <div class="info-content">
+        <div class="modal-body-scrollable">
+          <!-- Featured Latest Release APK Card -->
+          <div class="apk-download-card">
+            <div class="apk-header">
+              <div class="apk-badge">OFFICIAL RELEASE BUILD</div>
+              <h4>KMRL Timetable & Train Tracker v5.4.1</h4>
+              <p>Native Android APK with lock-screen alerts, offline SQLite database, instant timetable lookups, and background update sync.</p>
+            </div>
+            <div class="apk-actions">
+              <a href="https://github.com/arundivakar/kmrl-timetable-app/raw/main/releases/KMRL_Timetable_v5.4.1_Release.apk" class="btn-download-apk" download>
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
+                <span>Download APK (v5.4.1 • 9.4 MB)</span>
+              </a>
+              <a href="https://github.com/arundivakar/kmrl-timetable-app/releases" target="_blank" rel="noopener noreferrer" class="btn-github-releases">
+                <span>View on GitHub ↗</span>
+              </a>
+            </div>
+          </div>
+
+          <!-- Version History / Changelog -->
+          <div class="releases-changelog-list" id="releases-changelog-list">
+            <div class="changelog-entry">
+              <div class="changelog-version-badge">v5.4.1 • Latest</div>
+              <h5>Lock Screen Alert Wake-Up & Hardware AlarmClock Interrupt</h5>
+              <ul>
+                <li>Hardware RTC AlarmClock scheduling ensuring Android Doze never defers alarms.</li>
+                <li>Display wake-up and CPU partial wakelock for station assistance alerts.</li>
+                <li>Battery optimization exemption guidance for instant delivery.</li>
+              </ul>
+            </div>
+
+            <div class="changelog-entry">
+              <div class="changelog-version-badge">v5.4.0</div>
+              <h5>Station Assistance Alarms & Low-End Device Optimizations</h5>
+              <ul>
+                <li>Custom lead-time passenger assistance alarms (Wheelchair, Escort, Boarding).</li>
+                <li>100x query speedup with composite SQLite indices and async pre-caching.</li>
+                <li>In-app release build manager and notification system.</li>
+              </ul>
+            </div>
+
+            <div class="changelog-entry">
+              <div class="changelog-version-badge">v5.3.0</div>
+              <h5>Timetable-Based Train Tracking & 25-Station Route Visualization</h5>
+              <ul>
+                <li>Computed real-time tracking for UP Line and DOWN Line routes.</li>
+                <li>Full station sequence timeline with intermediate station arrival times.</li>
+              </ul>
+            </div>
+
+            <div class="changelog-entry">
+              <div class="changelog-version-badge">v5.2.0</div>
+              <h5>Instant OTA Database Sync & 2026 Timetables</h5>
+              <ul>
+                <li>OTA hot-swap database sync directly from GitHub Pages without app restarts.</li>
+                <li>Bundled latest October 2026 weekday, weekend, and festival timetables.</li>
+              </ul>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- MODAL 4: Info & iPhone Installation Modal -->
+    <div id="modal-info" class="modal-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="modal-info-title">
+      <div class="modal-card">
+        <div class="modal-header">
+          <div class="brand">
+            <img src="icons/favicon.png" alt="Logo" class="brand-logo" width="28" height="28">
+            <h3 id="modal-info-title">KMRL Train Finder</h3>
+          </div>
+          <button id="btn-close-info" class="icon-button" aria-label="Close Info Modal">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+          </button>
+        </div>
+
+        <div class="info-content modal-body-scrollable">
           <!-- iPhone Install Box -->
           <div class="ios-install-card">
             <h4>📲 Install on iPhone (Add to Home Screen)</h4>
@@ -220,7 +538,7 @@
               <li>Open this site in <strong>Safari</strong> on your iPhone.</li>
               <li>Tap the <strong>Share</strong> button (the square with the arrow pointing up: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align: middle;"><path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8"></path><polyline points="16 6 12 2 8 6"></polyline><line x1="12" y1="2" x2="12" y2="15"></line></svg>).</li>
               <li>Scroll down and tap <strong>Add to Home Screen</strong>.</li>
-              <li>Tap <strong>Add</strong> in the top right.</li>
+              <li>Tap <strong>Add</strong> in the top right corner.</li>
             </ol>
             <p class="small-text">Runs full-screen with 100% offline access underground!</p>
           </div>
@@ -232,15 +550,23 @@
             </div>
             <div class="info-row">
               <span class="info-label">Current Version:</span>
-              <span class="info-val">v5.0.7 (Web PWA)</span>
+              <span class="info-val">v5.4.1 (Web PWA + Parity)</span>
+            </div>
+            <div class="info-row">
+              <span class="info-label">Schedules Database:</span>
+              <span class="info-val" id="info-schedules-count">67 Timetables Loaded</span>
             </div>
             <div class="info-row">
               <span class="info-label">Offline Support:</span>
               <span class="info-val" id="offline-status-badge">✅ Active (Cache Ready)</span>
             </div>
-            <div class="info-row" style="margin-top:8px;padding-top:8px;border-top:1px solid rgba(255,255,255,0.1);">
-              <span class="info-label">Admin Portal:</span>
-              <span class="info-val"><a href="admin.html" style="color:#00D1B2;font-weight:700;text-decoration:none;">Open Admin Portal ↗</a></span>
+            <div class="info-row" style="margin-top:10px;padding-top:10px;border-top:1px solid rgba(255,255,255,0.12);display:flex;justify-content:space-between;align-items:center;">
+              <span class="info-label">Android APK Releases:</span>
+              <span class="info-val"><button id="btn-open-releases-from-info" class="link-btn">View Releases & Download ↗</button></span>
+            </div>
+            <div class="info-row" style="padding-top:8px;display:flex;justify-content:space-between;align-items:center;">
+              <span class="info-label">Admin Management:</span>
+              <span class="info-val"><a href="admin.html" style="color:var(--kmrl-teal-light);font-weight:700;text-decoration:none;">Open Admin Portal ↗</a></span>
             </div>
           </div>
         </div>
@@ -259,6 +585,11 @@
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
         </button>
       </div>
+    </div>
+
+    <!-- Toast Notification Banner -->
+    <div id="toast-notification" class="toast-notification hidden">
+      <div id="toast-message" class="toast-message">Message</div>
     </div>
 
   </div>

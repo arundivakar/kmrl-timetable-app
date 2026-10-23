@@ -4,7 +4,7 @@
 
   const FIREBASE_RTDB_BASE = 'https://kmrl-train-finder-default-rtdb.asia-southeast1.firebasedatabase.app';
   
-  // State
+  // Application State
   const state = {
     stations: [],
     timetablesMeta: {},
@@ -12,17 +12,24 @@
     dateAssignments: {},
     loadedTimetables: {}, // cache of { timetableName: data }
     
+    // Route Search
     selectedFromStation: null,
     selectedToStation: null,
+    selectedTravelDate: new Date(),
     routeFilterMode: 'UPCOMING', // 'UPCOMING' | 'ALL'
 
+    // Station Timings Tab
     selectedSingleStation: null,
+    stationDay: 'TODAY', // 'TODAY' | 'TOMORROW'
     stationDirection: 'UP', // 'UP' = towards TPHT, 'DOWN' = towards Aluva
     stationFilterMode: 'UPCOMING', // 'UPCOMING' | 'ALL'
 
+    // System & Navigation
     activeTimetableName: '',
     currentDate: new Date(),
-    isDarkMode: false
+    isDarkMode: false,
+    logoTapCount: 0,
+    logoTapTimeout: null
   };
 
   // ---------------------------------------------------------------------------
@@ -32,9 +39,13 @@
     initTheme();
     initClock();
     initNavigation();
+    initDateSelector();
     initStationPickerModal();
+    initTrainStopsModal();
+    initReleasesModal();
     initInfoModal();
     initIosPrompt();
+    initLogoAdminGesture();
     registerServiceWorker();
 
     try {
@@ -43,7 +54,7 @@
       setDefaultStations();
       renderAll();
 
-      // Auto-sync with Firebase when app resumes or regains focus (e.g. unlocking iPhone)
+      // Auto-sync with Firebase when app resumes or regains focus
       document.addEventListener('visibilitychange', () => {
         if (document.visibilityState === 'visible') {
           syncFirebaseDefaults().then(() => renderAll());
@@ -53,7 +64,7 @@
         syncFirebaseDefaults().then(() => renderAll());
       });
 
-      // Background sync every 2 minutes so active users get live admin updates without manual reload
+      // Periodic background sync every 2 minutes
       setInterval(() => {
         syncFirebaseDefaults().then(() => renderAll());
       }, 120000);
@@ -69,12 +80,12 @@
     if ('serviceWorker' in navigator) {
       navigator.serviceWorker.register('sw.js')
         .then((reg) => {
-          console.log('KMRL Service Worker registered:', reg.scope);
+          console.log('KMRL Service Worker active:', reg.scope);
           const badge = document.getElementById('offline-status-badge');
           if (badge) badge.textContent = '✅ Active (Cache Ready)';
         })
         .catch((err) => {
-          console.warn('Service Worker registration failed:', err);
+          console.warn('Service Worker registration skipped/failed:', err);
         });
     }
   }
@@ -153,6 +164,11 @@
       acc[item.name] = item;
       return acc;
     }, {});
+
+    const countElem = document.getElementById('info-schedules-count');
+    if (countElem) {
+      countElem.textContent = `${(ttJson.timetables || []).length} Timetables Loaded`;
+    }
   }
 
   async function syncFirebaseDefaults() {
@@ -196,10 +212,8 @@
     const pythonDay = (jsDay + 6) % 7;
 
     if (pythonDay === 6) {
-      // Sunday default
-      return state.dayDefaults[6] || '13S010326_5TPHT_MRP1';
+      return state.dayDefaults[6] || '13S111026_MRP1';
     } else {
-      // In KMRL, Mon-Sat (0..5) uses Weekday default (day 0)
       return state.dayDefaults[0] || state.dayDefaults[pythonDay] || '16W070926_TPHTOFFPEAK_MRP1';
     }
   }
@@ -227,10 +241,29 @@
 
   function setDefaultStations() {
     if (state.stations.length >= 2) {
-      state.selectedFromStation = state.stations[0]; // Aluva
-      state.selectedToStation = state.stations[state.stations.length - 1]; // Tripunithura
+      state.selectedFromStation = state.stations[0]; // Aluva (#1)
+      state.selectedToStation = state.stations[state.stations.length - 1]; // Tripunithura (#25)
       state.selectedSingleStation = state.stations[0]; // Aluva
     }
+  }
+
+  // ---------------------------------------------------------------------------
+  // Fare Calculation & Route Analytics
+  // ---------------------------------------------------------------------------
+  function calculateFare(fromStation, toStation) {
+    if (!fromStation || !toStation) return { fare: 0, stations: 0, distance: '0.0' };
+    const stationCount = Math.abs(fromStation.sequence - toStation.sequence);
+    if (stationCount === 0) return { fare: 0, stations: 0, distance: '0.0' };
+
+    let fare = 60;
+    if (stationCount <= 2) fare = 10;
+    else if (stationCount <= 5) fare = 20;
+    else if (stationCount <= 9) fare = 30;
+    else if (stationCount <= 14) fare = 40;
+    else if (stationCount <= 18) fare = 50;
+
+    const distance = (stationCount * 1.17).toFixed(1);
+    return { fare, stations: stationCount, distance };
   }
 
   // ---------------------------------------------------------------------------
@@ -256,7 +289,59 @@
   }
 
   // ---------------------------------------------------------------------------
-  // Station Picker Modal
+  // Date Selector (Today, Tomorrow, Custom Calendar Date)
+  // ---------------------------------------------------------------------------
+  function initDateSelector() {
+    const chipToday = document.getElementById('chip-date-today');
+    const chipTomorrow = document.getElementById('chip-date-tomorrow');
+    const chipCustom = document.getElementById('chip-date-custom');
+    const customInput = document.getElementById('custom-date-input');
+    const dateDisplay = document.getElementById('active-date-display');
+
+    function setDate(date, mode) {
+      state.selectedTravelDate = date;
+      chipToday.classList.toggle('active', mode === 'today');
+      chipTomorrow.classList.toggle('active', mode === 'tomorrow');
+      chipCustom.classList.toggle('active', mode === 'custom');
+
+      const isToday = isSameDay(date, state.currentDate);
+      const isTomorrow = isSameDay(date, new Date(Date.now() + 86400000));
+
+      if (isToday) {
+        dateDisplay.textContent = 'Today (' + date.toLocaleDateString('en-US', { day: 'numeric', month: 'short' }) + ')';
+      } else if (isTomorrow) {
+        dateDisplay.textContent = 'Tomorrow (' + date.toLocaleDateString('en-US', { day: 'numeric', month: 'short' }) + ')';
+      } else {
+        dateDisplay.textContent = date.toLocaleDateString('en-US', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' });
+      }
+
+      renderTodaySearch();
+    }
+
+    chipToday.addEventListener('click', () => {
+      setDate(new Date(), 'today');
+    });
+
+    chipTomorrow.addEventListener('click', () => {
+      const tmrw = new Date();
+      tmrw.setDate(tmrw.getDate() + 1);
+      setDate(tmrw, 'tomorrow');
+    });
+
+    customInput.addEventListener('change', (e) => {
+      if (e.target.value) {
+        const [year, month, day] = e.target.value.split('-').map(Number);
+        const pickedDate = new Date(year, month - 1, day);
+        setDate(pickedDate, 'custom');
+      }
+    });
+
+    // Initialize display with Today
+    setDate(new Date(), 'today');
+  }
+
+  // ---------------------------------------------------------------------------
+  // Station Picker Modal & Quick Pills
   // ---------------------------------------------------------------------------
   let pickerCallback = null;
 
@@ -264,7 +349,9 @@
     const modal = document.getElementById('modal-station-picker');
     const closeBtn = document.getElementById('btn-close-modal');
     const searchInput = document.getElementById('station-search-input');
+    const clearBtn = document.getElementById('btn-clear-station-search');
     const listContainer = document.getElementById('station-list-items');
+    const quickChips = document.getElementById('modal-quick-chips');
 
     closeBtn.addEventListener('click', () => modal.classList.add('hidden'));
     modal.addEventListener('click', (e) => {
@@ -273,7 +360,27 @@
 
     searchInput.addEventListener('input', () => {
       const q = searchInput.value.toLowerCase().trim();
+      clearBtn.classList.toggle('hidden', q.length === 0);
       renderStationModalList(q);
+    });
+
+    clearBtn.addEventListener('click', () => {
+      searchInput.value = '';
+      clearBtn.classList.add('hidden');
+      renderStationModalList('');
+      searchInput.focus();
+    });
+
+    // Quick pick chips inside modal
+    quickChips.querySelectorAll('.quick-chip').forEach((chip) => {
+      chip.addEventListener('click', () => {
+        const stId = parseInt(chip.getAttribute('data-station-id'), 10);
+        const station = state.stations.find((s) => s.id === stId);
+        if (station && pickerCallback) {
+          pickerCallback(station);
+          modal.classList.add('hidden');
+        }
+      });
     });
 
     function renderStationModalList(filter = '') {
@@ -298,6 +405,7 @@
     window.openStationPicker = (title, onSelect) => {
       document.getElementById('modal-station-title').textContent = title;
       searchInput.value = '';
+      clearBtn.classList.add('hidden');
       pickerCallback = onSelect;
       renderStationModalList();
       modal.classList.remove('hidden');
@@ -309,6 +417,8 @@
       window.openStationPicker('Select Source Station', (st) => {
         state.selectedFromStation = st;
         renderTodaySearch();
+        renderTomorrow();
+        renderFullTimetable();
       });
     });
 
@@ -316,6 +426,8 @@
       window.openStationPicker('Select Destination Station', (st) => {
         state.selectedToStation = st;
         renderTodaySearch();
+        renderTomorrow();
+        renderFullTimetable();
       });
     });
 
@@ -327,16 +439,59 @@
       state.selectedFromStation = state.selectedToStation;
       state.selectedToStation = temp;
       renderTodaySearch();
+      renderTomorrow();
+      renderFullTimetable();
     });
 
+    // Tomorrow swap
+    document.getElementById('btn-tmrw-swap').addEventListener('click', () => {
+      const temp = state.selectedFromStation;
+      state.selectedFromStation = state.selectedToStation;
+      state.selectedToStation = temp;
+      renderTodaySearch();
+      renderTomorrow();
+      renderFullTimetable();
+    });
+
+    // Full timetable swap
+    document.getElementById('btn-full-swap').addEventListener('click', () => {
+      const temp = state.selectedFromStation;
+      state.selectedFromStation = state.selectedToStation;
+      state.selectedToStation = temp;
+      renderTodaySearch();
+      renderTomorrow();
+      renderFullTimetable();
+    });
+
+    // Quick station pills on Today tab (From & To)
+    attachQuickPills('quick-pills-from', (st) => {
+      state.selectedFromStation = st;
+      renderTodaySearch();
+      renderTomorrow();
+      renderFullTimetable();
+    });
+
+    attachQuickPills('quick-pills-to', (st) => {
+      state.selectedToStation = st;
+      renderTodaySearch();
+      renderTomorrow();
+      renderFullTimetable();
+    });
+
+    // Single station picker in Station Timings tab
     document.getElementById('btn-select-single-station').addEventListener('click', () => {
-      window.openStationPicker('Select Station', (st) => {
+      window.openStationPicker('Select Station Timings', (st) => {
         state.selectedSingleStation = st;
         renderStationTimings();
       });
     });
 
-    // Today search filter chips
+    attachQuickPills('quick-pills-station', (st) => {
+      state.selectedSingleStation = st;
+      renderStationTimings();
+    });
+
+    // Today search filter chips (Upcoming / All)
     document.getElementById('chip-upcoming').addEventListener('click', () => {
       state.routeFilterMode = 'UPCOMING';
       document.getElementById('chip-upcoming').classList.add('active');
@@ -349,6 +504,24 @@
       document.getElementById('chip-all-trains').classList.add('active');
       document.getElementById('chip-upcoming').classList.remove('active');
       renderTodaySearch();
+    });
+
+    // Station Timings: Day Toggle (Today vs Tomorrow)
+    document.getElementById('btn-st-day-today').addEventListener('click', () => {
+      state.stationDay = 'TODAY';
+      document.getElementById('btn-st-day-today').classList.add('active');
+      document.getElementById('btn-st-day-tomorrow').classList.remove('active');
+      document.getElementById('station-filters-bar').classList.remove('hidden');
+      renderStationTimings();
+    });
+
+    document.getElementById('btn-st-day-tomorrow').addEventListener('click', () => {
+      state.stationDay = 'TOMORROW';
+      document.getElementById('btn-st-day-tomorrow').classList.add('active');
+      document.getElementById('btn-st-day-today').classList.remove('active');
+      // For tomorrow, all scheduled services are displayed
+      document.getElementById('station-filters-bar').classList.add('hidden');
+      renderStationTimings();
     });
 
     // Station timings direction toggle
@@ -385,9 +558,149 @@
     });
   }
 
+  function attachQuickPills(containerId, callback) {
+    const container = document.getElementById(containerId);
+    if (!container) return;
+    container.querySelectorAll('.quick-pill').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        const stId = parseInt(btn.getAttribute('data-station-id'), 10);
+        const station = state.stations.find((s) => s.id === stId);
+        if (station) {
+          container.querySelectorAll('.quick-pill').forEach((b) => b.classList.remove('active'));
+          btn.classList.add('active');
+          callback(station);
+        }
+      });
+    });
+  }
+
   // ---------------------------------------------------------------------------
-  // Info & iOS Prompt
+  // Train Stoppage Timeline Modal
   // ---------------------------------------------------------------------------
+  function initTrainStopsModal() {
+    const modal = document.getElementById('modal-train-stops');
+    const closeBtn = document.getElementById('btn-close-stops');
+
+    closeBtn.addEventListener('click', () => modal.classList.add('hidden'));
+    modal.addEventListener('click', (e) => {
+      if (e.target === modal) modal.classList.add('hidden');
+    });
+
+    window.openTrainStopsModal = async (trainNo, direction, terminalDepTime, highlightFromId, highlightToId, timetableName) => {
+      const modalBadge = document.getElementById('modal-train-badge');
+      const modalTitle = document.getElementById('modal-train-title');
+      const modalSubtitle = document.getElementById('modal-train-subtitle');
+      const startTimeElem = document.getElementById('modal-start-time');
+      const endTimeElem = document.getElementById('modal-end-time');
+      const countElem = document.getElementById('modal-stops-count');
+      const durElem = document.getElementById('modal-total-duration');
+      const timeline = document.getElementById('timeline-container');
+
+      modalBadge.textContent = `TRAIN ${trainNo}`;
+      modalTitle.textContent = `Train ${trainNo} Route Schedule`;
+      const dirTitle = direction === 'UP' ? 'Aluva ➔ Tripunithura (UP Line)' : 'Tripunithura ➔ Aluva (DOWN Line)';
+      modalSubtitle.textContent = `${dirTitle} • ${timetableName}`;
+
+      const ttData = await getTimetableData(timetableName);
+      if (!ttData || !ttData.trips) {
+        showToast('No stoppage schedule available for this train.');
+        return;
+      }
+
+      // Find trip
+      const trip = ttData.trips.find(
+        (t) => t.train_no === trainNo && t.direction === direction && t.terminal_departure === terminalDepTime
+      ) || ttData.trips.find(
+        (t) => t.train_no === trainNo && t.direction === direction
+      );
+
+      if (!trip || !trip.stops) {
+        showToast('Stoppage schedule not found.');
+        return;
+      }
+
+      // Ordered stops based on direction
+      const sortedStations = [...state.stations].sort((a, b) => {
+        return direction === 'UP' ? a.sequence - b.sequence : b.sequence - a.sequence;
+      });
+
+      const validStops = sortedStations.filter((st) => trip.stops[st.id]);
+      if (validStops.length === 0) return;
+
+      const firstStop = validStops[0];
+      const lastStop = validStops[validStops.length - 1];
+      const startDep = trip.stops[firstStop.id];
+      const endArr = trip.stops[lastStop.id];
+
+      startTimeElem.textContent = startDep.slice(0, 5);
+      endTimeElem.textContent = endArr.slice(0, 5);
+      countElem.textContent = `${validStops.length} Stops`;
+      durElem.textContent = `${getDurationMinutes(startDep, endArr)}m`;
+
+      timeline.innerHTML = '';
+
+      // Determine currently running station beacon if viewing today
+      const nowStr = state.currentDate.toTimeString().split(' ')[0];
+      const isRunningNow = isSameDay(state.selectedTravelDate, state.currentDate) && nowStr >= startDep && nowStr <= endArr;
+
+      let hasMarkedActive = false;
+
+      validStops.forEach((st, idx) => {
+        const timeVal = trip.stops[st.id];
+        const isOrigin = st.id === highlightFromId || idx === 0;
+        const isDest = st.id === highlightToId || idx === validStops.length - 1;
+
+        let activeStopClass = '';
+        if (isRunningNow && !hasMarkedActive && timeVal >= nowStr) {
+          activeStopClass = 'active-stop';
+          hasMarkedActive = true;
+        }
+
+        const durFromStart = getDurationMinutes(startDep, timeVal);
+
+        const item = document.createElement('div');
+        item.className = `timeline-item ${isOrigin ? 'origin' : ''} ${isDest ? 'destination' : ''} ${activeStopClass}`;
+        item.innerHTML = `
+          <div class="timeline-bullet"></div>
+          <div class="timeline-station-info">
+            <span class="timeline-station-name">${st.name} (${st.code})</span>
+            <span class="timeline-station-seq">Station #${st.sequence} ${isOrigin ? '• Boarding' : ''} ${isDest ? '• Destination' : ''}</span>
+          </div>
+          <div class="timeline-time-info">
+            <span class="timeline-time-val">${timeVal.slice(0, 5)}</span>
+            <span class="timeline-dur-val">+${durFromStart}m</span>
+          </div>
+        `;
+        timeline.appendChild(item);
+      });
+
+      modal.classList.remove('hidden');
+    };
+  }
+
+  // ---------------------------------------------------------------------------
+  // Releases & Info Modals
+  // ---------------------------------------------------------------------------
+  function initReleasesModal() {
+    const modal = document.getElementById('modal-releases');
+    const btnOpen = document.getElementById('btn-releases');
+    const btnClose = document.getElementById('btn-close-releases');
+    const btnFromInfo = document.getElementById('btn-open-releases-from-info');
+
+    btnOpen.addEventListener('click', () => modal.classList.remove('hidden'));
+    btnClose.addEventListener('click', () => modal.classList.add('hidden'));
+    if (btnFromInfo) {
+      btnFromInfo.addEventListener('click', () => {
+        document.getElementById('modal-info').classList.add('hidden');
+        modal.classList.remove('hidden');
+      });
+    }
+
+    modal.addEventListener('click', (e) => {
+      if (e.target === modal) modal.classList.add('hidden');
+    });
+  }
+
   function initInfoModal() {
     const modal = document.getElementById('modal-info');
     const btnOpen = document.getElementById('btn-info');
@@ -417,10 +730,54 @@
     }
   }
 
+  // Secret 5-Tap Gesture on KMRL Brand to unlock Admin mode
+  function initLogoAdminGesture() {
+    const brand = document.getElementById('brand-header');
+    if (!brand) return;
+
+    brand.addEventListener('click', () => {
+      state.logoTapCount++;
+      clearTimeout(state.logoTapTimeout);
+      state.logoTapTimeout = setTimeout(() => {
+        state.logoTapCount = 0;
+      }, 3000);
+
+      if (state.logoTapCount >= 5) {
+        state.logoTapCount = 0;
+        const adminNav = document.getElementById('nav-item-admin');
+        if (adminNav) {
+          adminNav.classList.remove('hidden');
+          showToast('🔓 Admin Portal Unlocked! Tap Admin tab to open.');
+        } else {
+          window.location.href = 'admin.html';
+        }
+      }
+    });
+
+    const adminNav = document.getElementById('nav-item-admin');
+    if (adminNav) {
+      adminNav.addEventListener('click', () => {
+        window.location.href = 'admin.html';
+      });
+    }
+  }
+
+  function showToast(msg) {
+    const toast = document.getElementById('toast-notification');
+    const msgElem = document.getElementById('toast-message');
+    if (!toast || !msgElem) return;
+
+    msgElem.textContent = msg;
+    toast.classList.remove('hidden');
+    setTimeout(() => {
+      toast.classList.add('hidden');
+    }, 3200);
+  }
+
   // ---------------------------------------------------------------------------
   // Core Schedule Query Helpers
   // ---------------------------------------------------------------------------
-  function getUpcomingJourneys(trips, fromId, toId, timeStr) {
+  function getUpcomingJourneys(trips, fromId, toId) {
     const direction = fromId < toId ? 'UP' : 'DOWN';
     const journeys = [];
 
@@ -432,9 +789,11 @@
 
       journeys.push({
         trainNo: trip.train_no,
+        direction: trip.direction,
         departureTime: fromDep,
         arrivalTime: toDep,
-        terminalDepartureTime: trip.terminal_departure
+        terminalDepartureTime: trip.terminal_departure,
+        rawTrip: trip
       });
     }
 
@@ -453,19 +812,20 @@
         trainNo: trip.train_no,
         direction: trip.direction,
         departureTime: dep,
-        terminalDepartureTime: trip.terminal_departure
+        terminalDepartureTime: trip.terminal_departure,
+        rawTrip: trip
       });
     }
     calls.sort((a, b) => a.departureTime.localeCompare(b.departureTime));
     return calls;
   }
 
-  function getCountdownSeconds(timeStr, now = new Date()) {
+  function getCountdownSeconds(timeStr, targetDate = new Date()) {
     const parts = timeStr.split(':').map(Number);
     if (parts.length < 2) return -9999;
-    const target = new Date(now);
+    const target = new Date(targetDate);
     target.setHours(parts[0], parts[1], parts[2] || 0, 0);
-    return Math.floor((target.getTime() - now.getTime()) / 1000);
+    return Math.floor((target.getTime() - state.currentDate.getTime()) / 1000);
   }
 
   function formatCountdown(sec) {
@@ -496,23 +856,37 @@
     return Math.round(diff / 60);
   }
 
+  function isSameDay(d1, d2) {
+    return d1.getFullYear() === d2.getFullYear() &&
+           d1.getMonth() === d2.getMonth() &&
+           d1.getDate() === d2.getDate();
+  }
+
   // ---------------------------------------------------------------------------
-  // Rendering
+  // Master Render Routines
   // ---------------------------------------------------------------------------
   function renderAll() {
     renderTodaySearch();
     renderStationTimings();
     renderTomorrow();
+    renderFullTimetable();
   }
 
+  // 1. TODAY ROUTE SEARCH
   async function renderTodaySearch() {
     const fromBtnName = document.getElementById('from-station-name');
     const toBtnName = document.getElementById('to-station-name');
     const emptyPrompt = document.getElementById('empty-prompt');
     const controls = document.getElementById('results-controls');
     const trainsList = document.getElementById('trains-list');
-    const travelTimeBadge = document.getElementById('travel-time-badge');
     const schedulePillName = document.getElementById('active-schedule-name');
+    const routeScheduleTag = document.getElementById('route-schedule-name');
+    const summaryCard = document.getElementById('journey-summary-card');
+    const fareVal = document.getElementById('fare-val');
+    const stationCountVal = document.getElementById('station-count-val');
+    const durationVal = document.getElementById('duration-val');
+    const firstTrainVal = document.getElementById('first-train-val');
+    const lastTrainVal = document.getElementById('last-train-val');
 
     if (!state.selectedFromStation || !state.selectedToStation) return;
 
@@ -524,6 +898,7 @@
       emptyPrompt.querySelector('h3').textContent = 'Source & Destination are the same';
       emptyPrompt.querySelector('p').textContent = 'Please choose different stations to see trains.';
       controls.classList.add('hidden');
+      if (summaryCard) summaryCard.classList.add('hidden');
       trainsList.innerHTML = '';
       return;
     }
@@ -531,10 +906,19 @@
     emptyPrompt.classList.add('hidden');
     controls.classList.remove('hidden');
 
-    // Get today's timetable
-    const ttName = getTimetableNameForDate(state.currentDate);
+    // Fare calculation
+    const fareInfo = calculateFare(state.selectedFromStation, state.selectedToStation);
+    if (summaryCard) {
+      summaryCard.classList.remove('hidden');
+      fareVal.textContent = `₹${fareInfo.fare} Fare`;
+      stationCountVal.textContent = `${fareInfo.stations} Stops (${fareInfo.distance} km)`;
+    }
+
+    // Determine timetable for the selected travel date
+    const ttName = getTimetableNameForDate(state.selectedTravelDate);
     state.activeTimetableName = ttName;
-    schedulePillName.textContent = `Schedule: ${ttName}`;
+    schedulePillName.textContent = `Active Schedule: ${ttName}`;
+    if (routeScheduleTag) routeScheduleTag.textContent = ttName;
 
     const ttData = await getTimetableData(ttName);
     if (!ttData || !ttData.trips) {
@@ -542,19 +926,26 @@
       return;
     }
 
-    const allJourneys = getUpcomingJourneys(ttData.trips, state.selectedFromStation.id, state.selectedToStation.id, '00:00:00');
+    const allJourneys = getUpcomingJourneys(ttData.trips, state.selectedFromStation.id, state.selectedToStation.id);
     if (allJourneys.length > 0) {
       const dur = getDurationMinutes(allJourneys[0].departureTime, allJourneys[0].arrivalTime);
-      travelTimeBadge.textContent = `Travel time: ${dur} min`;
+      if (durationVal) durationVal.textContent = `~${dur} min`;
+      if (firstTrainVal) firstTrainVal.textContent = allJourneys[0].departureTime.slice(0, 5);
+      if (lastTrainVal) lastTrainVal.textContent = allJourneys[allJourneys.length - 1].departureTime.slice(0, 5);
     }
 
-    const now = state.currentDate;
-    const isSunday = now.getDay() === 0;
+    const isToday = isSameDay(state.selectedTravelDate, state.currentDate);
+    const isSunday = state.selectedTravelDate.getDay() === 0;
 
-    // Filter by upcoming if in UPCOMING mode
-    const filteredJourneys = state.routeFilterMode === 'UPCOMING'
-      ? allJourneys.filter((j) => getCountdownSeconds(j.departureTime, now) > -60)
+    // Filter upcoming only if user selected UPCOMING and viewing Today
+    const filteredJourneys = (isToday && state.routeFilterMode === 'UPCOMING')
+      ? allJourneys.filter((j) => getCountdownSeconds(j.departureTime, state.selectedTravelDate) > -60)
       : allJourneys;
+
+    // Update filter chip labels with counts
+    const upcomingCount = isToday ? allJourneys.filter((j) => getCountdownSeconds(j.departureTime, state.selectedTravelDate) > -60).length : allJourneys.length;
+    document.getElementById('chip-upcoming').textContent = `UPCOMING (${upcomingCount})`;
+    document.getElementById('chip-all-trains').textContent = `ALL TRAINS (${allJourneys.length})`;
 
     trainsList.innerHTML = '';
 
@@ -580,69 +971,103 @@
     // Render Hero Next Train
     const hero = filteredJourneys[0];
     const heroIsRev = isRevenue(hero.terminalDepartureTime, hero.departureTime, isSunday);
-    const heroSec = getCountdownSeconds(hero.departureTime, now);
+    const heroSec = isToday ? getCountdownSeconds(hero.departureTime, state.selectedTravelDate) : -9999;
 
     const heroCard = document.createElement('div');
     heroCard.className = `train-hero-card ${heroIsRev ? '' : 'non-revenue'}`;
+    heroCard.title = 'Click to view complete stop-by-stop schedule';
     heroCard.innerHTML = `
       <div class="hero-header">
-        <span class="badge-pill">${state.routeFilterMode === 'ALL' ? 'TRAIN ' + hero.trainNo : 'NEXT TRAIN'}</span>
+        <span class="badge-pill">${isToday && state.routeFilterMode === 'UPCOMING' ? 'NEXT TRAIN' : 'TRAIN ' + hero.trainNo}</span>
         ${heroIsRev ? '' : '<span class="badge-non-revenue">NON-REVENUE SERVICE</span>'}
       </div>
       <div class="hero-main">
         <div class="hero-time-box">
-          <span class="hero-time">${hero.departureTime}</span>
+          <span class="hero-time">${hero.departureTime.slice(0, 5)}</span>
           <span class="hero-sub">Train ${hero.trainNo} • Departs ${state.selectedFromStation.name}</span>
         </div>
         <div class="hero-countdown">
-          <span class="hero-countdown-label">${heroSec <= 0 ? 'STATUS' : 'DEPARTS IN'}</span>
-          <div class="hero-countdown-val" data-cd-time="${hero.departureTime}">${formatCountdown(heroSec)}</div>
+          <span class="hero-countdown-label">${isToday ? (heroSec <= 0 ? 'STATUS' : 'DEPARTS IN') : 'SCHEDULED'}</span>
+          <div class="hero-countdown-val" ${isToday ? `data-cd-time="${hero.departureTime}"` : ''}>
+            ${isToday ? formatCountdown(heroSec) : `${getDurationMinutes(hero.departureTime, hero.arrivalTime)}m`}
+          </div>
         </div>
       </div>
       <div class="hero-footer">
-        <span>Arrives at ${state.selectedToStation.name}: <strong>${hero.arrivalTime}</strong></span>
-        <span>${getDurationMinutes(hero.departureTime, hero.arrivalTime)} min</span>
+        <span>Arrives at ${state.selectedToStation.name}: <strong>${hero.arrivalTime.slice(0, 5)}</strong></span>
+        <button class="btn-view-stops-mini">VIEW STOPS ➔</button>
       </div>
     `;
+
+    heroCard.addEventListener('click', () => {
+      window.openTrainStopsModal(
+        hero.trainNo,
+        hero.direction,
+        hero.terminalDepartureTime,
+        state.selectedFromStation.id,
+        state.selectedToStation.id,
+        ttName
+      );
+    });
+
     trainsList.appendChild(heroCard);
 
     // Following Trains List
     if (filteredJourneys.length > 1) {
       const followHeader = document.createElement('div');
       followHeader.className = 'following-label';
-      followHeader.textContent = 'FOLLOWING TRAINS';
+      followHeader.textContent = isToday && state.routeFilterMode === 'UPCOMING' ? 'FOLLOWING TRAINS' : 'ALL SCHEDULED SERVICES';
       trainsList.appendChild(followHeader);
 
       filteredJourneys.slice(1).forEach((item, idx) => {
         const isRev = isRevenue(item.terminalDepartureTime, item.departureTime, isSunday);
-        const cdSec = getCountdownSeconds(item.departureTime, now);
+        const cdSec = isToday ? getCountdownSeconds(item.departureTime, state.selectedTravelDate) : -9999;
         const row = document.createElement('div');
         row.className = `train-row-card ${idx % 2 === 0 ? '' : 'alt-accent'} ${isRev ? '' : 'non-revenue'}`;
+        row.title = 'Click to view complete stop-by-stop schedule';
         row.innerHTML = `
           <div class="row-left">
             <span class="row-train-no">Train ${item.trainNo} ${isRev ? '' : '• NON-REVENUE'}</span>
-            <span class="row-time">${item.departureTime}</span>
-            <span class="row-dest">Arrives ${state.selectedToStation.name} at ${item.arrivalTime}</span>
+            <span class="row-time">${item.departureTime.slice(0, 5)}</span>
+            <span class="row-dest">Arrives ${state.selectedToStation.name} at ${item.arrivalTime.slice(0, 5)}</span>
           </div>
           <div class="row-right">
-            <span class="row-cd-label">${cdSec <= 0 ? 'STATUS' : 'IN'}</span>
-            <div class="row-cd-val" data-cd-time="${item.departureTime}">${formatCountdown(cdSec)}</div>
+            <span class="row-cd-label">${isToday ? (cdSec <= 0 ? 'STATUS' : 'IN') : 'DURATION'}</span>
+            <div class="row-cd-val" ${isToday ? `data-cd-time="${item.departureTime}"` : ''}>
+              ${isToday ? formatCountdown(cdSec) : `${getDurationMinutes(item.departureTime, item.arrivalTime)}m`}
+            </div>
           </div>
         `;
+
+        row.addEventListener('click', () => {
+          window.openTrainStopsModal(
+            item.trainNo,
+            item.direction,
+            item.terminalDepartureTime,
+            state.selectedFromStation.id,
+            state.selectedToStation.id,
+            ttName
+          );
+        });
+
         trainsList.appendChild(row);
       });
     }
   }
 
+  // 2. STATION TIMINGS TAB
   async function renderStationTimings() {
     const stBtnName = document.getElementById('single-station-name');
     const btnAluva = document.getElementById('btn-dir-aluva');
     const btnTpht = document.getElementById('btn-dir-tpht');
     const list = document.getElementById('station-trains-list');
+    const firstTimeElem = document.getElementById('station-first-time');
+    const lastTimeElem = document.getElementById('station-last-time');
+    const totalCountElem = document.getElementById('station-total-count');
 
     if (!state.selectedSingleStation) return;
     const st = state.selectedSingleStation;
-    stBtnName.textContent = `${st.name} (${st.code})`;
+    stBtnName.textContent = `${st.name} (${st.code}) #${st.sequence}`;
 
     // Adjust button labels for Terminal Stations
     if (st.code === 'ALVA') {
@@ -652,36 +1077,56 @@
       btnAluva.textContent = 'DEPARTURES (TO ALUVA)';
       btnTpht.textContent = 'ARRIVALS (AT TPHT)';
     } else {
-      btnAluva.textContent = '→ ALUVA';
-      btnTpht.textContent = '→ TPHT';
+      btnAluva.textContent = 'TOWARDS ALUVA';
+      btnTpht.textContent = 'TOWARDS TPHT';
     }
 
     const isAluvaArrival = st.code === 'ALVA' && state.stationDirection === 'DOWN';
     const isTphtArrival = st.code === 'TPHT' && state.stationDirection === 'UP';
     const isArrival = isAluvaArrival || isTphtArrival;
 
-    const ttName = getTimetableNameForDate(state.currentDate);
+    // Date resolution (Today vs Tomorrow)
+    const isTomorrow = state.stationDay === 'TOMORROW';
+    const targetDate = new Date();
+    if (isTomorrow) targetDate.setDate(targetDate.getDate() + 1);
+
+    const ttName = getTimetableNameForDate(targetDate);
     const ttData = await getTimetableData(ttName);
     if (!ttData || !ttData.trips) {
-      list.innerHTML = '<div class="empty-state"><p>No timetable data.</p></div>';
+      list.innerHTML = '<div class="empty-state"><p>No timetable data for this station.</p></div>';
       return;
     }
 
     const allCalls = getStationCalls(ttData.trips, st.id, state.stationDirection);
-    const now = state.currentDate;
-    const isSunday = now.getDay() === 0;
+    const isSunday = targetDate.getDay() === 0;
 
-    const filtered = state.stationFilterMode === 'UPCOMING'
-      ? allCalls.filter((c) => getCountdownSeconds(c.departureTime, now) > -60)
+    // Stats
+    if (allCalls.length > 0) {
+      if (firstTimeElem) firstTimeElem.textContent = allCalls[0].departureTime.slice(0, 5);
+      if (lastTimeElem) lastTimeElem.textContent = allCalls[allCalls.length - 1].departureTime.slice(0, 5);
+      if (totalCountElem) totalCountElem.textContent = allCalls.length;
+    } else {
+      if (firstTimeElem) firstTimeElem.textContent = '--:--';
+      if (lastTimeElem) lastTimeElem.textContent = '--:--';
+      if (totalCountElem) totalCountElem.textContent = '0';
+    }
+
+    const filtered = (!isTomorrow && state.stationFilterMode === 'UPCOMING')
+      ? allCalls.filter((c) => getCountdownSeconds(c.departureTime, targetDate) > -60)
       : allCalls;
+
+    // Update filter counts
+    const upcomingCount = !isTomorrow ? allCalls.filter((c) => getCountdownSeconds(c.departureTime, targetDate) > -60).length : allCalls.length;
+    document.getElementById('chip-st-upcoming').textContent = `UPCOMING (${upcomingCount})`;
+    document.getElementById('chip-st-all').textContent = `ALL TRAINS (${allCalls.length})`;
 
     list.innerHTML = '';
 
     if (filtered.length === 0) {
       list.innerHTML = `
         <div class="empty-state">
-          <h3>No ${isArrival ? 'upcoming arrivals' : 'upcoming trains'}</h3>
-          <p>No more trains scheduled in this direction for today.</p>
+          <h3>No ${isArrival ? 'upcoming arrivals' : 'upcoming departures'}</h3>
+          <p>No more trains scheduled in this direction for ${isTomorrow ? 'tomorrow' : 'today'}.</p>
         </div>
       `;
       return;
@@ -690,60 +1135,108 @@
     // Hero First Train / Arrival Card
     const hero = filtered[0];
     const heroIsRev = isRevenue(hero.terminalDepartureTime, hero.departureTime, isSunday);
-    const heroSec = getCountdownSeconds(hero.departureTime, now);
+    const heroSec = !isTomorrow ? getCountdownSeconds(hero.departureTime, targetDate) : -9999;
 
     const heroCard = document.createElement('div');
     heroCard.className = `train-hero-card ${heroIsRev ? '' : 'non-revenue'}`;
+    heroCard.title = 'Click to view complete stop-by-stop schedule';
     heroCard.innerHTML = `
       <div class="hero-header">
-        <span class="badge-pill">${isArrival ? 'NEXT ARRIVAL' : 'NEXT TRAIN'}</span>
+        <span class="badge-pill">${isArrival ? 'NEXT ARRIVAL' : (!isTomorrow && state.stationFilterMode === 'UPCOMING' ? 'NEXT DEPARTURE' : 'TRAIN ' + hero.trainNo)}</span>
         ${heroIsRev ? '' : '<span class="badge-non-revenue">NON-REVENUE SERVICE</span>'}
       </div>
       <div class="hero-main">
         <div class="hero-time-box">
-          <span class="hero-time">${hero.departureTime}</span>
-          <span class="hero-sub">Train ${hero.trainNo} • ${isArrival ? 'Reaches ' + st.name : (state.stationDirection === 'UP' ? 'Towards TPHT' : 'Towards Aluva')}</span>
+          <span class="hero-time">${hero.departureTime.slice(0, 5)}</span>
+          <span class="hero-sub">Train ${hero.trainNo} • ${isArrival ? 'Reaches ' + st.name : (state.stationDirection === 'UP' ? 'Towards Tripunithura' : 'Towards Aluva')}</span>
         </div>
         <div class="hero-countdown">
-          <span class="hero-countdown-label">${heroSec <= 0 ? (isArrival ? 'ARRIVED' : 'DEPARTED') : (isArrival ? 'ARRIVES IN' : 'IN')}</span>
-          <div class="hero-countdown-val" data-cd-time="${hero.departureTime}">${formatCountdown(heroSec)}</div>
+          <span class="hero-countdown-label">${!isTomorrow ? (heroSec <= 0 ? (isArrival ? 'ARRIVED' : 'DEPARTED') : (isArrival ? 'ARRIVES IN' : 'IN')) : 'SCHEDULED'}</span>
+          <div class="hero-countdown-val" ${!isTomorrow ? `data-cd-time="${hero.departureTime}"` : ''}>
+            ${!isTomorrow ? formatCountdown(heroSec) : hero.departureTime.slice(0, 5)}
+          </div>
         </div>
       </div>
+      <div class="hero-footer">
+        <span>${isArrival ? 'Terminal Arrival' : 'Platform Departure'} • Timetable: ${ttName}</span>
+        <button class="btn-view-stops-mini">VIEW STOPS ➔</button>
+      </div>
     `;
+
+    heroCard.addEventListener('click', () => {
+      window.openTrainStopsModal(
+        hero.trainNo,
+        hero.direction,
+        hero.terminalDepartureTime,
+        st.id,
+        state.stationDirection === 'UP' ? 25 : 1,
+        ttName
+      );
+    });
+
     list.appendChild(heroCard);
 
     // Following rows
     if (filtered.length > 1) {
       const followHeader = document.createElement('div');
       followHeader.className = 'following-label';
-      followHeader.textContent = isArrival ? 'FOLLOWING ARRIVALS' : 'FOLLOWING TRAINS';
+      followHeader.textContent = isArrival ? 'FOLLOWING ARRIVALS' : 'FOLLOWING DEPARTURES';
       list.appendChild(followHeader);
 
       filtered.slice(1).forEach((item, idx) => {
         const isRev = isRevenue(item.terminalDepartureTime, item.departureTime, isSunday);
-        const cdSec = getCountdownSeconds(item.departureTime, now);
+        const cdSec = !isTomorrow ? getCountdownSeconds(item.departureTime, targetDate) : -9999;
         const row = document.createElement('div');
         row.className = `train-row-card ${idx % 2 === 0 ? '' : 'alt-accent'} ${isRev ? '' : 'non-revenue'}`;
+        row.title = 'Click to view complete stop-by-stop schedule';
         row.innerHTML = `
           <div class="row-left">
             <span class="row-train-no">Train ${item.trainNo} ${isRev ? '' : '• NON-REVENUE'}</span>
-            <span class="row-time">${item.departureTime}</span>
-            <span class="row-dest">${isArrival ? 'Arrival at ' + st.name : (state.stationDirection === 'UP' ? 'Towards TPHT' : 'Towards Aluva')}</span>
+            <span class="row-time">${item.departureTime.slice(0, 5)}</span>
+            <span class="row-dest">${isArrival ? 'Arrival at ' + st.name : (state.stationDirection === 'UP' ? 'Towards Tripunithura' : 'Towards Aluva')}</span>
           </div>
           <div class="row-right">
-            <span class="row-cd-label">${cdSec <= 0 ? (isArrival ? 'ARRIVED' : 'DEPARTED') : (isArrival ? 'ARRIVES IN' : 'IN')}</span>
-            <div class="row-cd-val" data-cd-time="${item.departureTime}">${formatCountdown(cdSec)}</div>
+            <span class="row-cd-label">${!isTomorrow ? (cdSec <= 0 ? (isArrival ? 'ARRIVED' : 'DEPARTED') : (isArrival ? 'ARRIVES IN' : 'IN')) : 'SCHEDULED'}</span>
+            <div class="row-cd-val" ${!isTomorrow ? `data-cd-time="${item.departureTime}"` : ''}>
+              ${!isTomorrow ? formatCountdown(cdSec) : item.departureTime.slice(0, 5)}
+            </div>
           </div>
         `;
+
+        row.addEventListener('click', () => {
+          window.openTrainStopsModal(
+            item.trainNo,
+            item.direction,
+            item.terminalDepartureTime,
+            st.id,
+            state.stationDirection === 'UP' ? 25 : 1,
+            ttName
+          );
+        });
+
         list.appendChild(row);
       });
     }
   }
 
+  // 3. TOMORROW TAB
   async function renderTomorrow() {
     const list = document.getElementById('tomorrow-trains-list');
     const dateTitle = document.getElementById('tomorrow-date-str');
+    const ttTitle = document.getElementById('tomorrow-tt-name');
+    const tmrwFrom = document.getElementById('tmrw-from-name');
+    const tmrwTo = document.getElementById('tmrw-to-name');
+    const fareVal = document.getElementById('tmrw-fare-val');
+    const durVal = document.getElementById('tmrw-dur-val');
+    const countVal = document.getElementById('tmrw-count-val');
+
     if (!state.selectedFromStation || !state.selectedToStation) return;
+
+    tmrwFrom.textContent = state.selectedFromStation.name;
+    tmrwTo.textContent = state.selectedToStation.name;
+
+    const fareInfo = calculateFare(state.selectedFromStation, state.selectedToStation);
+    fareVal.textContent = `₹${fareInfo.fare} Fare (${fareInfo.stations} Stops)`;
 
     const tomorrow = new Date(state.currentDate);
     tomorrow.setDate(tomorrow.getDate() + 1);
@@ -753,13 +1246,15 @@
     }
 
     const ttName = getTimetableNameForDate(tomorrow);
+    if (ttTitle) ttTitle.textContent = `Schedule: ${ttName}`;
+
     const ttData = await getTimetableData(ttName);
     if (!ttData || !ttData.trips) {
       list.innerHTML = '<div class="empty-state"><p>No timetable data for tomorrow.</p></div>';
       return;
     }
 
-    const journeys = getUpcomingJourneys(ttData.trips, state.selectedFromStation.id, state.selectedToStation.id, '00:00:00');
+    const journeys = getUpcomingJourneys(ttData.trips, state.selectedFromStation.id, state.selectedToStation.id);
     list.innerHTML = '';
 
     if (journeys.length === 0) {
@@ -767,31 +1262,125 @@
       return;
     }
 
+    const dur = getDurationMinutes(journeys[0].departureTime, journeys[0].arrivalTime);
+    durVal.textContent = `~${dur} min`;
+    countVal.textContent = `${journeys.length} Services`;
+
     const isSunday = tomorrow.getDay() === 0;
     journeys.forEach((item, idx) => {
       const isRev = isRevenue(item.terminalDepartureTime, item.departureTime, isSunday);
       const row = document.createElement('div');
       row.className = `train-row-card ${idx % 2 === 0 ? '' : 'alt-accent'} ${isRev ? '' : 'non-revenue'}`;
+      row.title = 'Click to view complete stop-by-stop schedule';
       row.innerHTML = `
         <div class="row-left">
           <span class="row-train-no">Train ${item.trainNo} ${isRev ? '' : '• NON-REVENUE'}</span>
-          <span class="row-time">${item.departureTime}</span>
-          <span class="row-dest">Arrives ${state.selectedToStation.name} at ${item.arrivalTime}</span>
+          <span class="row-time">${item.departureTime.slice(0, 5)}</span>
+          <span class="row-dest">Arrives ${state.selectedToStation.name} at ${item.arrivalTime.slice(0, 5)}</span>
         </div>
         <div class="row-right">
-          <span class="row-cd-label">SCHEDULED</span>
+          <span class="row-cd-label">DURATION</span>
           <div class="row-cd-val">${getDurationMinutes(item.departureTime, item.arrivalTime)}m</div>
         </div>
       `;
+
+      row.addEventListener('click', () => {
+        window.openTrainStopsModal(
+          item.trainNo,
+          item.direction,
+          item.terminalDepartureTime,
+          state.selectedFromStation.id,
+          state.selectedToStation.id,
+          ttName
+        );
+      });
+
       list.appendChild(row);
     });
   }
 
+  // 4. FULL TIMETABLE TAB (Parity with APK FullTimetableScreen.kt)
+  async function renderFullTimetable() {
+    const list = document.getElementById('full-trains-list');
+    const fromNameElem = document.getElementById('full-from-name');
+    const toNameElem = document.getElementById('full-to-name');
+    const durElem = document.getElementById('full-tt-duration');
+    const totalElem = document.getElementById('full-tt-total');
+    const scheduleElem = document.getElementById('full-tt-schedule');
+    const dateDisplay = document.getElementById('full-tt-date-display');
+
+    if (!state.selectedFromStation || !state.selectedToStation) return;
+
+    fromNameElem.textContent = state.selectedFromStation.name.toUpperCase();
+    toNameElem.textContent = state.selectedToStation.name.toUpperCase();
+
+    const dateOptions = { weekday: 'short', day: 'numeric', month: 'short' };
+    dateDisplay.textContent = state.selectedTravelDate.toLocaleDateString('en-US', dateOptions);
+
+    const ttName = getTimetableNameForDate(state.selectedTravelDate);
+    scheduleElem.textContent = `Schedule: ${ttName}`;
+
+    const ttData = await getTimetableData(ttName);
+    if (!ttData || !ttData.trips) {
+      list.innerHTML = '<div class="empty-state"><p>No timetable data available.</p></div>';
+      return;
+    }
+
+    const allJourneys = getUpcomingJourneys(ttData.trips, state.selectedFromStation.id, state.selectedToStation.id);
+    list.innerHTML = '';
+
+    if (allJourneys.length === 0) {
+      list.innerHTML = '<div class="empty-state"><p>No scheduled services found between these stations.</p></div>';
+      totalElem.textContent = 'Total: 0';
+      return;
+    }
+
+    const dur = getDurationMinutes(allJourneys[0].departureTime, allJourneys[0].arrivalTime);
+    durElem.textContent = `Travel time: ${dur} min`;
+    totalElem.textContent = `Total Trains: ${allJourneys.length}`;
+
+    const isSunday = state.selectedTravelDate.getDay() === 0;
+
+    allJourneys.forEach((item, idx) => {
+      const isRev = isRevenue(item.terminalDepartureTime, item.departureTime, isSunday);
+      const row = document.createElement('div');
+      row.className = `train-row-card ${idx % 2 === 0 ? '' : 'alt-accent'} ${isRev ? '' : 'non-revenue'}`;
+      row.title = 'Click to view complete stop-by-stop schedule';
+      row.innerHTML = `
+        <div class="row-left">
+          <span class="row-train-no">Train ${item.trainNo} ${isRev ? '' : '• NON-REVENUE'}</span>
+          <span class="row-time">${item.departureTime.slice(0, 5)} ➔ ${item.arrivalTime.slice(0, 5)}</span>
+          <span class="row-dest">Service #${idx + 1} of ${allJourneys.length}</span>
+        </div>
+        <div class="row-right">
+          <span class="row-cd-label">DURATION</span>
+          <div class="row-cd-val">${getDurationMinutes(item.departureTime, item.arrivalTime)}m</div>
+        </div>
+      `;
+
+      row.addEventListener('click', () => {
+        window.openTrainStopsModal(
+          item.trainNo,
+          item.direction,
+          item.terminalDepartureTime,
+          state.selectedFromStation.id,
+          state.selectedToStation.id,
+          ttName
+        );
+      });
+
+      list.appendChild(row);
+    });
+  }
+
+  // ---------------------------------------------------------------------------
+  // Realtime Countdown Updater
+  // ---------------------------------------------------------------------------
   function updateCountdowns() {
     const countdownElements = document.querySelectorAll('[data-cd-time]');
     countdownElements.forEach((el) => {
       const timeStr = el.getAttribute('data-cd-time');
-      const sec = getCountdownSeconds(timeStr, state.currentDate);
+      const sec = getCountdownSeconds(timeStr, state.selectedTravelDate);
       el.textContent = formatCountdown(sec);
     });
   }
