@@ -24,6 +24,11 @@
     stationDirection: 'UP', // 'UP' = towards TPHT, 'DOWN' = towards Aluva
     stationFilterMode: 'UPCOMING', // 'UPCOMING' | 'ALL'
 
+    // Calendar Picker State
+    calendarViewYear: new Date().getFullYear(),
+    calendarViewMonth: new Date().getMonth(),
+    calendarSelectedDate: new Date(),
+
     // System & Navigation
     activeTimetableName: '',
     currentDate: new Date(),
@@ -74,15 +79,27 @@
   });
 
   // ---------------------------------------------------------------------------
-  // Service Worker Registration
+  // Service Worker Registration & Auto-Reload on Update
   // ---------------------------------------------------------------------------
   function registerServiceWorker() {
     if ('serviceWorker' in navigator) {
+      // Reload page if a new service worker takes control (evicts old cache immediately)
+      let refreshing = false;
+      navigator.serviceWorker.addEventListener('controllerchange', () => {
+        if (!refreshing) {
+          refreshing = true;
+          window.location.reload();
+        }
+      });
+
       navigator.serviceWorker.register('sw.js')
         .then((reg) => {
           console.log('KMRL Service Worker active:', reg.scope);
           const badge = document.getElementById('offline-status-badge');
           if (badge) badge.textContent = '✅ Active (Cache Ready)';
+
+          // Check for service worker updates immediately
+          reg.update();
         })
         .catch((err) => {
           console.warn('Service Worker registration skipped/failed:', err);
@@ -198,6 +215,7 @@
   }
 
   function getTimetableNameForDate(date) {
+    if (!date) date = new Date();
     const yyyy = date.getFullYear();
     const mm = String(date.getMonth() + 1).padStart(2, '0');
     const dd = String(date.getDate()).padStart(2, '0');
@@ -219,6 +237,7 @@
   }
 
   async function getTimetableData(timetableName) {
+    if (!timetableName) timetableName = '16W070926_TPHTOFFPEAK_MRP1';
     if (state.loadedTimetables[timetableName]) {
       return state.loadedTimetables[timetableName];
     }
@@ -289,55 +308,256 @@
   }
 
   // ---------------------------------------------------------------------------
-  // Date Selector (Today, Tomorrow, Custom Calendar Date)
+  // Dedicated Calendar Date Picker (Modal & Full Date Selection)
   // ---------------------------------------------------------------------------
   function initDateSelector() {
     const chipToday = document.getElementById('chip-date-today');
     const chipTomorrow = document.getElementById('chip-date-tomorrow');
     const chipCustom = document.getElementById('chip-date-custom');
-    const customInput = document.getElementById('custom-date-input');
+    const customBtnText = document.getElementById('custom-date-btn-text');
     const dateDisplay = document.getElementById('active-date-display');
 
-    function setDate(date, mode) {
-      state.selectedTravelDate = date;
-      chipToday.classList.toggle('active', mode === 'today');
-      chipTomorrow.classList.toggle('active', mode === 'tomorrow');
-      chipCustom.classList.toggle('active', mode === 'custom');
+    // Calendar Modal elements
+    const calModal = document.getElementById('modal-date-picker');
+    const calCloseBtn = document.getElementById('btn-close-date-picker');
+    const calPrevBtn = document.getElementById('btn-cal-prev');
+    const calNextBtn = document.getElementById('btn-cal-next');
+    const calMonthYearLabel = document.getElementById('cal-month-year-label');
+    const calDaysGrid = document.getElementById('calendar-days-grid');
+    const calPreviewDateStr = document.getElementById('cal-preview-date-str');
+    const calPreviewTtName = document.getElementById('cal-preview-tt-name');
+    const btnApplyPickedDate = document.getElementById('btn-apply-picked-date');
+    const btnPresetToday = document.getElementById('btn-preset-today');
+    const btnPresetTomorrow = document.getElementById('btn-preset-tomorrow');
+    const btnPresetSunday = document.getElementById('btn-preset-sunday');
+
+    function applySelectedDate(date, mode) {
+      state.selectedTravelDate = new Date(date);
+      if (chipToday) chipToday.classList.toggle('active', mode === 'today');
+      if (chipTomorrow) chipTomorrow.classList.toggle('active', mode === 'tomorrow');
+      if (chipCustom) chipCustom.classList.toggle('active', mode === 'custom');
 
       const isToday = isSameDay(date, state.currentDate);
-      const isTomorrow = isSameDay(date, new Date(Date.now() + 86400000));
+      const tmrwDate = new Date();
+      tmrwDate.setDate(tmrwDate.getDate() + 1);
+      const isTomorrow = isSameDay(date, tmrwDate);
 
-      if (isToday) {
-        dateDisplay.textContent = 'Today (' + date.toLocaleDateString('en-US', { day: 'numeric', month: 'short' }) + ')';
-      } else if (isTomorrow) {
-        dateDisplay.textContent = 'Tomorrow (' + date.toLocaleDateString('en-US', { day: 'numeric', month: 'short' }) + ')';
-      } else {
-        dateDisplay.textContent = date.toLocaleDateString('en-US', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' });
+      if (customBtnText) {
+        if (mode === 'custom') {
+          customBtnText.textContent = `📅 ${date.toLocaleDateString('en-US', { day: 'numeric', month: 'short' })}`;
+        } else {
+          customBtnText.textContent = 'PICK DATE';
+        }
+      }
+
+      if (dateDisplay) {
+        if (isToday) {
+          dateDisplay.textContent = 'Today (' + date.toLocaleDateString('en-US', { day: 'numeric', month: 'short' }) + ')';
+        } else if (isTomorrow) {
+          dateDisplay.textContent = 'Tomorrow (' + date.toLocaleDateString('en-US', { day: 'numeric', month: 'short' }) + ')';
+        } else {
+          dateDisplay.textContent = date.toLocaleDateString('en-US', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' });
+        }
       }
 
       renderTodaySearch();
+      renderFullTimetable();
     }
 
-    chipToday.addEventListener('click', () => {
-      setDate(new Date(), 'today');
-    });
+    if (chipToday) {
+      chipToday.addEventListener('click', () => {
+        applySelectedDate(new Date(), 'today');
+      });
+    }
 
-    chipTomorrow.addEventListener('click', () => {
-      const tmrw = new Date();
-      tmrw.setDate(tmrw.getDate() + 1);
-      setDate(tmrw, 'tomorrow');
-    });
+    if (chipTomorrow) {
+      chipTomorrow.addEventListener('click', () => {
+        const tmrw = new Date();
+        tmrw.setDate(tmrw.getDate() + 1);
+        applySelectedDate(tmrw, 'tomorrow');
+      });
+    }
 
-    customInput.addEventListener('change', (e) => {
-      if (e.target.value) {
-        const [year, month, day] = e.target.value.split('-').map(Number);
-        const pickedDate = new Date(year, month - 1, day);
-        setDate(pickedDate, 'custom');
+    // Open Calendar Modal
+    if (chipCustom && calModal) {
+      chipCustom.addEventListener('click', () => {
+        state.calendarSelectedDate = new Date(state.selectedTravelDate);
+        state.calendarViewYear = state.calendarSelectedDate.getFullYear();
+        state.calendarViewMonth = state.calendarSelectedDate.getMonth();
+        renderCalendarView();
+        calModal.classList.remove('hidden');
+      });
+    }
+
+    if (calCloseBtn && calModal) {
+      calCloseBtn.addEventListener('click', () => calModal.classList.add('hidden'));
+      calModal.addEventListener('click', (e) => {
+        if (e.target === calModal) calModal.classList.add('hidden');
+      });
+    }
+
+    if (calPrevBtn) {
+      calPrevBtn.addEventListener('click', () => {
+        state.calendarViewMonth--;
+        if (state.calendarViewMonth < 0) {
+          state.calendarViewMonth = 11;
+          state.calendarViewYear--;
+        }
+        renderCalendarView();
+      });
+    }
+
+    if (calNextBtn) {
+      calNextBtn.addEventListener('click', () => {
+        state.calendarViewMonth++;
+        if (state.calendarViewMonth > 11) {
+          state.calendarViewMonth = 0;
+          state.calendarViewYear++;
+        }
+        renderCalendarView();
+      });
+    }
+
+    // Presets inside modal
+    if (btnPresetToday) {
+      btnPresetToday.addEventListener('click', () => {
+        state.calendarSelectedDate = new Date();
+        state.calendarViewYear = state.calendarSelectedDate.getFullYear();
+        state.calendarViewMonth = state.calendarSelectedDate.getMonth();
+        renderCalendarView();
+      });
+    }
+
+    if (btnPresetTomorrow) {
+      btnPresetTomorrow.addEventListener('click', () => {
+        const tmrw = new Date();
+        tmrw.setDate(tmrw.getDate() + 1);
+        state.calendarSelectedDate = tmrw;
+        state.calendarViewYear = state.calendarSelectedDate.getFullYear();
+        state.calendarViewMonth = state.calendarSelectedDate.getMonth();
+        renderCalendarView();
+      });
+    }
+
+    if (btnPresetSunday) {
+      btnPresetSunday.addEventListener('click', () => {
+        const d = new Date();
+        const currentDay = d.getDay(); // 0 is Sun
+        const daysUntilSunday = currentDay === 0 ? 7 : (7 - currentDay);
+        d.setDate(d.getDate() + daysUntilSunday);
+        state.calendarSelectedDate = d;
+        state.calendarViewYear = state.calendarSelectedDate.getFullYear();
+        state.calendarViewMonth = state.calendarSelectedDate.getMonth();
+        renderCalendarView();
+      });
+    }
+
+    if (btnApplyPickedDate && calModal) {
+      btnApplyPickedDate.addEventListener('click', () => {
+        const isToday = isSameDay(state.calendarSelectedDate, state.currentDate);
+        const tmrwDate = new Date();
+        tmrwDate.setDate(tmrwDate.getDate() + 1);
+        const isTomorrow = isSameDay(state.calendarSelectedDate, tmrwDate);
+
+        const mode = isToday ? 'today' : (isTomorrow ? 'tomorrow' : 'custom');
+        applySelectedDate(state.calendarSelectedDate, mode);
+        calModal.classList.add('hidden');
+      });
+    }
+
+    function renderCalendarView() {
+      const year = state.calendarViewYear;
+      const month = state.calendarViewMonth;
+
+      const monthName = new Date(year, month, 1).toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+      if (calMonthYearLabel) calMonthYearLabel.textContent = monthName;
+
+      // Update Preview Card inside modal
+      if (calPreviewDateStr && calPreviewTtName) {
+        calPreviewDateStr.textContent = state.calendarSelectedDate.toLocaleDateString('en-US', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' });
+        const ttName = getTimetableNameForDate(state.calendarSelectedDate);
+        calPreviewTtName.textContent = `Schedule: ${ttName}`;
       }
-    });
 
-    // Initialize display with Today
-    setDate(new Date(), 'today');
+      if (!calDaysGrid) return;
+      calDaysGrid.innerHTML = '';
+
+      // First day of month (0 = Sun .. 6 = Sat). Convert to Monday-first (0 = Mon .. 6 = Sun)
+      const firstDay = new Date(year, month, 1).getDay();
+      const startingDayIdx = (firstDay + 6) % 7;
+      const daysInMonth = new Date(year, month + 1, 0).getDate();
+      const prevMonthDays = new Date(year, month, 0).getDate();
+
+      // Leading previous month cells
+      for (let i = startingDayIdx - 1; i >= 0; i--) {
+        const dayNum = prevMonthDays - i;
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'cal-day-cell other-month';
+        btn.textContent = dayNum;
+        btn.addEventListener('click', () => {
+          state.calendarViewMonth--;
+          if (state.calendarViewMonth < 0) {
+            state.calendarViewMonth = 11;
+            state.calendarViewYear--;
+          }
+          state.calendarSelectedDate = new Date(state.calendarViewYear, state.calendarViewMonth, dayNum);
+          renderCalendarView();
+        });
+        calDaysGrid.appendChild(btn);
+      }
+
+      // Current month days
+      for (let d = 1; d <= daysInMonth; d++) {
+        const thisDate = new Date(year, month, d);
+        const isToday = isSameDay(thisDate, state.currentDate);
+        const isSelected = isSameDay(thisDate, state.calendarSelectedDate);
+        const isSunday = thisDate.getDay() === 0;
+
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = `cal-day-cell ${isToday ? 'today' : ''} ${isSelected ? 'selected' : ''} ${isSunday ? 'sunday' : ''}`;
+        
+        const ttName = getTimetableNameForDate(thisDate);
+        const isFestival = ttName.toUpperCase().includes('FEST');
+        const tag = isSunday ? 'SUN' : (isFestival ? 'FEST' : 'WD');
+
+        btn.innerHTML = `
+          <span>${d}</span>
+          <span class="cal-day-tag">${tag}</span>
+        `;
+
+        btn.addEventListener('click', () => {
+          state.calendarSelectedDate = new Date(year, month, d);
+          renderCalendarView();
+        });
+
+        calDaysGrid.appendChild(btn);
+      }
+
+      // Trailing next month cells to fill grid (35 or 42 cells)
+      const totalCells = startingDayIdx + daysInMonth;
+      const remaining = totalCells <= 35 ? (35 - totalCells) : (42 - totalCells);
+      for (let d = 1; d <= remaining; d++) {
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'cal-day-cell other-month';
+        btn.textContent = d;
+        btn.addEventListener('click', () => {
+          state.calendarViewMonth++;
+          if (state.calendarViewMonth > 11) {
+            state.calendarViewMonth = 0;
+            state.calendarViewYear++;
+          }
+          state.calendarSelectedDate = new Date(state.calendarViewYear, state.calendarViewMonth, d);
+          renderCalendarView();
+        });
+        calDaysGrid.appendChild(btn);
+      }
+    }
+
+    // Default to Today on launch
+    applySelectedDate(new Date(), 'today');
   }
 
   // ---------------------------------------------------------------------------
@@ -353,37 +573,46 @@
     const listContainer = document.getElementById('station-list-items');
     const quickChips = document.getElementById('modal-quick-chips');
 
-    closeBtn.addEventListener('click', () => modal.classList.add('hidden'));
-    modal.addEventListener('click', (e) => {
-      if (e.target === modal) modal.classList.add('hidden');
-    });
+    if (closeBtn && modal) closeBtn.addEventListener('click', () => modal.classList.add('hidden'));
+    if (modal) {
+      modal.addEventListener('click', (e) => {
+        if (e.target === modal) modal.classList.add('hidden');
+      });
+    }
 
-    searchInput.addEventListener('input', () => {
-      const q = searchInput.value.toLowerCase().trim();
-      clearBtn.classList.toggle('hidden', q.length === 0);
-      renderStationModalList(q);
-    });
+    if (searchInput) {
+      searchInput.addEventListener('input', () => {
+        const q = searchInput.value.toLowerCase().trim();
+        if (clearBtn) clearBtn.classList.toggle('hidden', q.length === 0);
+        renderStationModalList(q);
+      });
+    }
 
-    clearBtn.addEventListener('click', () => {
-      searchInput.value = '';
-      clearBtn.classList.add('hidden');
-      renderStationModalList('');
-      searchInput.focus();
-    });
+    if (clearBtn && searchInput) {
+      clearBtn.addEventListener('click', () => {
+        searchInput.value = '';
+        clearBtn.classList.add('hidden');
+        renderStationModalList('');
+        searchInput.focus();
+      });
+    }
 
     // Quick pick chips inside modal
-    quickChips.querySelectorAll('.quick-chip').forEach((chip) => {
-      chip.addEventListener('click', () => {
-        const stId = parseInt(chip.getAttribute('data-station-id'), 10);
-        const station = state.stations.find((s) => s.id === stId);
-        if (station && pickerCallback) {
-          pickerCallback(station);
-          modal.classList.add('hidden');
-        }
+    if (quickChips) {
+      quickChips.querySelectorAll('.quick-chip').forEach((chip) => {
+        chip.addEventListener('click', () => {
+          const stId = parseInt(chip.getAttribute('data-station-id'), 10);
+          const station = state.stations.find((s) => s.id === stId);
+          if (station && pickerCallback && modal) {
+            pickerCallback(station);
+            modal.classList.add('hidden');
+          }
+        });
       });
-    });
+    }
 
     function renderStationModalList(filter = '') {
+      if (!listContainer) return;
       listContainer.innerHTML = '';
       state.stations
         .filter((s) => s.name.toLowerCase().includes(filter) || s.code.toLowerCase().includes(filter))
@@ -396,72 +625,90 @@
           `;
           item.addEventListener('click', () => {
             if (pickerCallback) pickerCallback(st);
-            modal.classList.add('hidden');
+            if (modal) modal.classList.add('hidden');
           });
           listContainer.appendChild(item);
         });
     }
 
     window.openStationPicker = (title, onSelect) => {
-      document.getElementById('modal-station-title').textContent = title;
-      searchInput.value = '';
-      clearBtn.classList.add('hidden');
+      const modalTitle = document.getElementById('modal-station-title');
+      if (modalTitle) modalTitle.textContent = title;
+      if (searchInput) searchInput.value = '';
+      if (clearBtn) clearBtn.classList.add('hidden');
       pickerCallback = onSelect;
       renderStationModalList();
-      modal.classList.remove('hidden');
-      setTimeout(() => searchInput.focus(), 150);
+      if (modal) {
+        modal.classList.remove('hidden');
+        setTimeout(() => searchInput && searchInput.focus(), 150);
+      }
     };
 
     // Attach to UI buttons
-    document.getElementById('btn-select-from').addEventListener('click', () => {
-      window.openStationPicker('Select Source Station', (st) => {
-        state.selectedFromStation = st;
-        renderTodaySearch();
-        renderTomorrow();
-        renderFullTimetable();
+    const btnSelectFrom = document.getElementById('btn-select-from');
+    if (btnSelectFrom) {
+      btnSelectFrom.addEventListener('click', () => {
+        window.openStationPicker('Select Source Station', (st) => {
+          state.selectedFromStation = st;
+          renderTodaySearch();
+          renderTomorrow();
+          renderFullTimetable();
+        });
       });
-    });
+    }
 
-    document.getElementById('btn-select-to').addEventListener('click', () => {
-      window.openStationPicker('Select Destination Station', (st) => {
-        state.selectedToStation = st;
-        renderTodaySearch();
-        renderTomorrow();
-        renderFullTimetable();
+    const btnSelectTo = document.getElementById('btn-select-to');
+    if (btnSelectTo) {
+      btnSelectTo.addEventListener('click', () => {
+        window.openStationPicker('Select Destination Station', (st) => {
+          state.selectedToStation = st;
+          renderTodaySearch();
+          renderTomorrow();
+          renderFullTimetable();
+        });
       });
-    });
+    }
 
     let swapRotation = 0;
-    document.getElementById('btn-swap-stations').addEventListener('click', () => {
-      swapRotation += 180;
-      document.getElementById('btn-swap-stations').style.transform = `rotate(${swapRotation}deg)`;
-      const temp = state.selectedFromStation;
-      state.selectedFromStation = state.selectedToStation;
-      state.selectedToStation = temp;
-      renderTodaySearch();
-      renderTomorrow();
-      renderFullTimetable();
-    });
+    const btnSwap = document.getElementById('btn-swap-stations');
+    if (btnSwap) {
+      btnSwap.addEventListener('click', () => {
+        swapRotation += 180;
+        btnSwap.style.transform = `rotate(${swapRotation}deg)`;
+        const temp = state.selectedFromStation;
+        state.selectedFromStation = state.selectedToStation;
+        state.selectedToStation = temp;
+        renderTodaySearch();
+        renderTomorrow();
+        renderFullTimetable();
+      });
+    }
 
     // Tomorrow swap
-    document.getElementById('btn-tmrw-swap').addEventListener('click', () => {
-      const temp = state.selectedFromStation;
-      state.selectedFromStation = state.selectedToStation;
-      state.selectedToStation = temp;
-      renderTodaySearch();
-      renderTomorrow();
-      renderFullTimetable();
-    });
+    const btnTmrwSwap = document.getElementById('btn-tmrw-swap');
+    if (btnTmrwSwap) {
+      btnTmrwSwap.addEventListener('click', () => {
+        const temp = state.selectedFromStation;
+        state.selectedFromStation = state.selectedToStation;
+        state.selectedToStation = temp;
+        renderTodaySearch();
+        renderTomorrow();
+        renderFullTimetable();
+      });
+    }
 
     // Full timetable swap
-    document.getElementById('btn-full-swap').addEventListener('click', () => {
-      const temp = state.selectedFromStation;
-      state.selectedFromStation = state.selectedToStation;
-      state.selectedToStation = temp;
-      renderTodaySearch();
-      renderTomorrow();
-      renderFullTimetable();
-    });
+    const btnFullSwap = document.getElementById('btn-full-swap');
+    if (btnFullSwap) {
+      btnFullSwap.addEventListener('click', () => {
+        const temp = state.selectedFromStation;
+        state.selectedFromStation = state.selectedToStation;
+        state.selectedToStation = temp;
+        renderTodaySearch();
+        renderTomorrow();
+        renderFullTimetable();
+      });
+    }
 
     // Quick station pills on Today tab (From & To)
     attachQuickPills('quick-pills-from', (st) => {
@@ -479,12 +726,15 @@
     });
 
     // Single station picker in Station Timings tab
-    document.getElementById('btn-select-single-station').addEventListener('click', () => {
-      window.openStationPicker('Select Station Timings', (st) => {
-        state.selectedSingleStation = st;
-        renderStationTimings();
+    const btnSingle = document.getElementById('btn-select-single-station');
+    if (btnSingle) {
+      btnSingle.addEventListener('click', () => {
+        window.openStationPicker('Select Station Timings', (st) => {
+          state.selectedSingleStation = st;
+          renderStationTimings();
+        });
       });
-    });
+    }
 
     attachQuickPills('quick-pills-station', (st) => {
       state.selectedSingleStation = st;
@@ -492,70 +742,85 @@
     });
 
     // Today search filter chips (Upcoming / All)
-    document.getElementById('chip-upcoming').addEventListener('click', () => {
-      state.routeFilterMode = 'UPCOMING';
-      document.getElementById('chip-upcoming').classList.add('active');
-      document.getElementById('chip-all-trains').classList.remove('active');
-      renderTodaySearch();
-    });
+    const chipUp = document.getElementById('chip-upcoming');
+    const chipAll = document.getElementById('chip-all-trains');
+    if (chipUp && chipAll) {
+      chipUp.addEventListener('click', () => {
+        state.routeFilterMode = 'UPCOMING';
+        chipUp.classList.add('active');
+        chipAll.classList.remove('active');
+        renderTodaySearch();
+      });
 
-    document.getElementById('chip-all-trains').addEventListener('click', () => {
-      state.routeFilterMode = 'ALL';
-      document.getElementById('chip-all-trains').classList.add('active');
-      document.getElementById('chip-upcoming').classList.remove('active');
-      renderTodaySearch();
-    });
+      chipAll.addEventListener('click', () => {
+        state.routeFilterMode = 'ALL';
+        chipAll.classList.add('active');
+        chipUp.classList.remove('active');
+        renderTodaySearch();
+      });
+    }
 
     // Station Timings: Day Toggle (Today vs Tomorrow)
-    document.getElementById('btn-st-day-today').addEventListener('click', () => {
-      state.stationDay = 'TODAY';
-      document.getElementById('btn-st-day-today').classList.add('active');
-      document.getElementById('btn-st-day-tomorrow').classList.remove('active');
-      document.getElementById('station-filters-bar').classList.remove('hidden');
-      renderStationTimings();
-    });
+    const btnStToday = document.getElementById('btn-st-day-today');
+    const btnStTmrw = document.getElementById('btn-st-day-tomorrow');
+    const stFilterBar = document.getElementById('station-filters-bar');
 
-    document.getElementById('btn-st-day-tomorrow').addEventListener('click', () => {
-      state.stationDay = 'TOMORROW';
-      document.getElementById('btn-st-day-tomorrow').classList.add('active');
-      document.getElementById('btn-st-day-today').classList.remove('active');
-      // For tomorrow, all scheduled services are displayed
-      document.getElementById('station-filters-bar').classList.add('hidden');
-      renderStationTimings();
-    });
+    if (btnStToday && btnStTmrw) {
+      btnStToday.addEventListener('click', () => {
+        state.stationDay = 'TODAY';
+        btnStToday.classList.add('active');
+        btnStTmrw.classList.remove('active');
+        if (stFilterBar) stFilterBar.classList.remove('hidden');
+        renderStationTimings();
+      });
+
+      btnStTmrw.addEventListener('click', () => {
+        state.stationDay = 'TOMORROW';
+        btnStTmrw.classList.add('active');
+        btnStToday.classList.remove('active');
+        if (stFilterBar) stFilterBar.classList.add('hidden');
+        renderStationTimings();
+      });
+    }
 
     // Station timings direction toggle
     const btnAluva = document.getElementById('btn-dir-aluva');
     const btnTpht = document.getElementById('btn-dir-tpht');
 
-    btnAluva.addEventListener('click', () => {
-      state.stationDirection = 'DOWN'; // towards Aluva
-      btnAluva.classList.add('active');
-      btnTpht.classList.remove('active');
-      renderStationTimings();
-    });
+    if (btnAluva && btnTpht) {
+      btnAluva.addEventListener('click', () => {
+        state.stationDirection = 'DOWN'; // towards Aluva
+        btnAluva.classList.add('active');
+        btnTpht.classList.remove('active');
+        renderStationTimings();
+      });
 
-    btnTpht.addEventListener('click', () => {
-      state.stationDirection = 'UP'; // towards TPHT
-      btnTpht.classList.add('active');
-      btnAluva.classList.remove('active');
-      renderStationTimings();
-    });
+      btnTpht.addEventListener('click', () => {
+        state.stationDirection = 'UP'; // towards TPHT
+        btnTpht.classList.add('active');
+        btnAluva.classList.remove('active');
+        renderStationTimings();
+      });
+    }
 
     // Station filter chips
-    document.getElementById('chip-st-upcoming').addEventListener('click', () => {
-      state.stationFilterMode = 'UPCOMING';
-      document.getElementById('chip-st-upcoming').classList.add('active');
-      document.getElementById('chip-st-all').classList.remove('active');
-      renderStationTimings();
-    });
+    const chipStUp = document.getElementById('chip-st-upcoming');
+    const chipStAll = document.getElementById('chip-st-all');
+    if (chipStUp && chipStAll) {
+      chipStUp.addEventListener('click', () => {
+        state.stationFilterMode = 'UPCOMING';
+        chipStUp.classList.add('active');
+        chipStAll.classList.remove('active');
+        renderStationTimings();
+      });
 
-    document.getElementById('chip-st-all').addEventListener('click', () => {
-      state.stationFilterMode = 'ALL';
-      document.getElementById('chip-st-all').classList.add('active');
-      document.getElementById('chip-st-upcoming').classList.remove('active');
-      renderStationTimings();
-    });
+      chipStAll.addEventListener('click', () => {
+        state.stationFilterMode = 'ALL';
+        chipStAll.classList.add('active');
+        chipStUp.classList.remove('active');
+        renderStationTimings();
+      });
+    }
   }
 
   function attachQuickPills(containerId, callback) {
@@ -581,10 +846,12 @@
     const modal = document.getElementById('modal-train-stops');
     const closeBtn = document.getElementById('btn-close-stops');
 
-    closeBtn.addEventListener('click', () => modal.classList.add('hidden'));
-    modal.addEventListener('click', (e) => {
-      if (e.target === modal) modal.classList.add('hidden');
-    });
+    if (closeBtn && modal) closeBtn.addEventListener('click', () => modal.classList.add('hidden'));
+    if (modal) {
+      modal.addEventListener('click', (e) => {
+        if (e.target === modal) modal.classList.add('hidden');
+      });
+    }
 
     window.openTrainStopsModal = async (trainNo, direction, terminalDepTime, highlightFromId, highlightToId, timetableName) => {
       const modalBadge = document.getElementById('modal-train-badge');
@@ -596,10 +863,10 @@
       const durElem = document.getElementById('modal-total-duration');
       const timeline = document.getElementById('timeline-container');
 
-      modalBadge.textContent = `TRAIN ${trainNo}`;
-      modalTitle.textContent = `Train ${trainNo} Route Schedule`;
+      if (modalBadge) modalBadge.textContent = `TRAIN ${trainNo}`;
+      if (modalTitle) modalTitle.textContent = `Train ${trainNo} Route Schedule`;
       const dirTitle = direction === 'UP' ? 'Aluva ➔ Tripunithura (UP Line)' : 'Tripunithura ➔ Aluva (DOWN Line)';
-      modalSubtitle.textContent = `${dirTitle} • ${timetableName}`;
+      if (modalSubtitle) modalSubtitle.textContent = `${dirTitle} • ${timetableName}`;
 
       const ttData = await getTimetableData(timetableName);
       if (!ttData || !ttData.trips) {
@@ -632,11 +899,12 @@
       const startDep = trip.stops[firstStop.id];
       const endArr = trip.stops[lastStop.id];
 
-      startTimeElem.textContent = startDep.slice(0, 5);
-      endTimeElem.textContent = endArr.slice(0, 5);
-      countElem.textContent = `${validStops.length} Stops`;
-      durElem.textContent = `${getDurationMinutes(startDep, endArr)}m`;
+      if (startTimeElem) startTimeElem.textContent = startDep.slice(0, 5);
+      if (endTimeElem) endTimeElem.textContent = endArr.slice(0, 5);
+      if (countElem) countElem.textContent = `${validStops.length} Stops`;
+      if (durElem) durElem.textContent = `${getDurationMinutes(startDep, endArr)}m`;
 
+      if (!timeline) return;
       timeline.innerHTML = '';
 
       // Determine currently running station beacon if viewing today
@@ -674,7 +942,7 @@
         timeline.appendChild(item);
       });
 
-      modal.classList.remove('hidden');
+      if (modal) modal.classList.remove('hidden');
     };
   }
 
@@ -687,18 +955,21 @@
     const btnClose = document.getElementById('btn-close-releases');
     const btnFromInfo = document.getElementById('btn-open-releases-from-info');
 
-    btnOpen.addEventListener('click', () => modal.classList.remove('hidden'));
-    btnClose.addEventListener('click', () => modal.classList.add('hidden'));
-    if (btnFromInfo) {
+    if (btnOpen && modal) btnOpen.addEventListener('click', () => modal.classList.remove('hidden'));
+    if (btnClose && modal) btnClose.addEventListener('click', () => modal.classList.add('hidden'));
+    if (btnFromInfo && modal) {
       btnFromInfo.addEventListener('click', () => {
-        document.getElementById('modal-info').classList.add('hidden');
+        const infoM = document.getElementById('modal-info');
+        if (infoM) infoM.classList.add('hidden');
         modal.classList.remove('hidden');
       });
     }
 
-    modal.addEventListener('click', (e) => {
-      if (e.target === modal) modal.classList.add('hidden');
-    });
+    if (modal) {
+      modal.addEventListener('click', (e) => {
+        if (e.target === modal) modal.classList.add('hidden');
+      });
+    }
   }
 
   function initInfoModal() {
@@ -706,11 +977,13 @@
     const btnOpen = document.getElementById('btn-info');
     const btnClose = document.getElementById('btn-close-info');
 
-    btnOpen.addEventListener('click', () => modal.classList.remove('hidden'));
-    btnClose.addEventListener('click', () => modal.classList.add('hidden'));
-    modal.addEventListener('click', (e) => {
-      if (e.target === modal) modal.classList.add('hidden');
-    });
+    if (btnOpen && modal) btnOpen.addEventListener('click', () => modal.classList.remove('hidden'));
+    if (btnClose && modal) btnClose.addEventListener('click', () => modal.classList.add('hidden'));
+    if (modal) {
+      modal.addEventListener('click', (e) => {
+        if (e.target === modal) modal.classList.add('hidden');
+      });
+    }
   }
 
   function initIosPrompt() {
@@ -722,10 +995,13 @@
       const banner = document.getElementById('ios-prompt-banner');
       if (banner) {
         banner.classList.remove('hidden');
-        document.getElementById('btn-dismiss-ios').addEventListener('click', () => {
-          banner.classList.add('hidden');
-          localStorage.setItem('kmrl_dismiss_ios_prompt', 'true');
-        });
+        const dismissBtn = document.getElementById('btn-dismiss-ios');
+        if (dismissBtn) {
+          dismissBtn.addEventListener('click', () => {
+            banner.classList.add('hidden');
+            localStorage.setItem('kmrl_dismiss_ios_prompt', 'true');
+          });
+        }
       }
     }
   }
@@ -857,6 +1133,7 @@
   }
 
   function isSameDay(d1, d2) {
+    if (!d1 || !d2) return false;
     return d1.getFullYear() === d2.getFullYear() &&
            d1.getMonth() === d2.getMonth() &&
            d1.getDate() === d2.getDate();
@@ -887,42 +1164,47 @@
     const durationVal = document.getElementById('duration-val');
     const firstTrainVal = document.getElementById('first-train-val');
     const lastTrainVal = document.getElementById('last-train-val');
+    const travelTimeBadge = document.getElementById('travel-time-badge');
 
     if (!state.selectedFromStation || !state.selectedToStation) return;
 
-    fromBtnName.textContent = `${state.selectedFromStation.name} (${state.selectedFromStation.code})`;
-    toBtnName.textContent = `${state.selectedToStation.name} (${state.selectedToStation.code})`;
+    if (fromBtnName) fromBtnName.textContent = `${state.selectedFromStation.name} (${state.selectedFromStation.code})`;
+    if (toBtnName) toBtnName.textContent = `${state.selectedToStation.name} (${state.selectedToStation.code})`;
 
     if (state.selectedFromStation.id === state.selectedToStation.id) {
-      emptyPrompt.classList.remove('hidden');
-      emptyPrompt.querySelector('h3').textContent = 'Source & Destination are the same';
-      emptyPrompt.querySelector('p').textContent = 'Please choose different stations to see trains.';
-      controls.classList.add('hidden');
+      if (emptyPrompt) {
+        emptyPrompt.classList.remove('hidden');
+        const h3 = emptyPrompt.querySelector('h3');
+        if (h3) h3.textContent = 'Source & Destination are the same';
+        const p = emptyPrompt.querySelector('p');
+        if (p) p.textContent = 'Please choose different stations to see trains.';
+      }
+      if (controls) controls.classList.add('hidden');
       if (summaryCard) summaryCard.classList.add('hidden');
-      trainsList.innerHTML = '';
+      if (trainsList) trainsList.innerHTML = '';
       return;
     }
 
-    emptyPrompt.classList.add('hidden');
-    controls.classList.remove('hidden');
+    if (emptyPrompt) emptyPrompt.classList.add('hidden');
+    if (controls) controls.classList.remove('hidden');
 
     // Fare calculation
     const fareInfo = calculateFare(state.selectedFromStation, state.selectedToStation);
     if (summaryCard) {
       summaryCard.classList.remove('hidden');
-      fareVal.textContent = `₹${fareInfo.fare} Fare`;
-      stationCountVal.textContent = `${fareInfo.stations} Stops (${fareInfo.distance} km)`;
+      if (fareVal) fareVal.textContent = `₹${fareInfo.fare} Fare`;
+      if (stationCountVal) stationCountVal.textContent = `${fareInfo.stations} Stops (${fareInfo.distance} km)`;
     }
 
     // Determine timetable for the selected travel date
     const ttName = getTimetableNameForDate(state.selectedTravelDate);
     state.activeTimetableName = ttName;
-    schedulePillName.textContent = `Active Schedule: ${ttName}`;
+    if (schedulePillName) schedulePillName.textContent = `Active Schedule: ${ttName}`;
     if (routeScheduleTag) routeScheduleTag.textContent = ttName;
 
     const ttData = await getTimetableData(ttName);
     if (!ttData || !ttData.trips) {
-      trainsList.innerHTML = '<div class="empty-state"><p>No timetable data available.</p></div>';
+      if (trainsList) trainsList.innerHTML = '<div class="empty-state"><p>No timetable data available.</p></div>';
       return;
     }
 
@@ -932,6 +1214,7 @@
       if (durationVal) durationVal.textContent = `~${dur} min`;
       if (firstTrainVal) firstTrainVal.textContent = allJourneys[0].departureTime.slice(0, 5);
       if (lastTrainVal) lastTrainVal.textContent = allJourneys[allJourneys.length - 1].departureTime.slice(0, 5);
+      if (travelTimeBadge) travelTimeBadge.textContent = `Travel time: ${dur} min`;
     }
 
     const isToday = isSameDay(state.selectedTravelDate, state.currentDate);
@@ -944,9 +1227,12 @@
 
     // Update filter chip labels with counts
     const upcomingCount = isToday ? allJourneys.filter((j) => getCountdownSeconds(j.departureTime, state.selectedTravelDate) > -60).length : allJourneys.length;
-    document.getElementById('chip-upcoming').textContent = `UPCOMING (${upcomingCount})`;
-    document.getElementById('chip-all-trains').textContent = `ALL TRAINS (${allJourneys.length})`;
+    const chipUp = document.getElementById('chip-upcoming');
+    const chipAll = document.getElementById('chip-all-trains');
+    if (chipUp) chipUp.textContent = `UPCOMING (${upcomingCount})`;
+    if (chipAll) chipAll.textContent = `ALL TRAINS (${allJourneys.length})`;
 
+    if (!trainsList) return;
     trainsList.innerHTML = '';
 
     if (filteredJourneys.length === 0) {
@@ -962,7 +1248,7 @@
       const btnViewAll = document.getElementById('btn-view-all-today');
       if (btnViewAll) {
         btnViewAll.addEventListener('click', () => {
-          document.getElementById('chip-all-trains').click();
+          if (chipAll) chipAll.click();
         });
       }
       return;
@@ -1067,18 +1353,18 @@
 
     if (!state.selectedSingleStation) return;
     const st = state.selectedSingleStation;
-    stBtnName.textContent = `${st.name} (${st.code}) #${st.sequence}`;
+    if (stBtnName) stBtnName.textContent = `${st.name} (${st.code}) #${st.sequence}`;
 
     // Adjust button labels for Terminal Stations
     if (st.code === 'ALVA') {
-      btnAluva.textContent = 'ARRIVALS (AT ALVA)';
-      btnTpht.textContent = 'DEPARTURES (TO TPHT)';
+      if (btnAluva) btnAluva.textContent = 'ARRIVALS (AT ALVA)';
+      if (btnTpht) btnTpht.textContent = 'DEPARTURES (TO TPHT)';
     } else if (st.code === 'TPHT') {
-      btnAluva.textContent = 'DEPARTURES (TO ALUVA)';
-      btnTpht.textContent = 'ARRIVALS (AT TPHT)';
+      if (btnAluva) btnAluva.textContent = 'DEPARTURES (TO ALUVA)';
+      if (btnTpht) btnTpht.textContent = 'ARRIVALS (AT TPHT)';
     } else {
-      btnAluva.textContent = 'TOWARDS ALUVA';
-      btnTpht.textContent = 'TOWARDS TPHT';
+      if (btnAluva) btnAluva.textContent = 'TOWARDS ALUVA';
+      if (btnTpht) btnTpht.textContent = 'TOWARDS TPHT';
     }
 
     const isAluvaArrival = st.code === 'ALVA' && state.stationDirection === 'DOWN';
@@ -1093,7 +1379,7 @@
     const ttName = getTimetableNameForDate(targetDate);
     const ttData = await getTimetableData(ttName);
     if (!ttData || !ttData.trips) {
-      list.innerHTML = '<div class="empty-state"><p>No timetable data for this station.</p></div>';
+      if (list) list.innerHTML = '<div class="empty-state"><p>No timetable data for this station.</p></div>';
       return;
     }
 
@@ -1117,9 +1403,12 @@
 
     // Update filter counts
     const upcomingCount = !isTomorrow ? allCalls.filter((c) => getCountdownSeconds(c.departureTime, targetDate) > -60).length : allCalls.length;
-    document.getElementById('chip-st-upcoming').textContent = `UPCOMING (${upcomingCount})`;
-    document.getElementById('chip-st-all').textContent = `ALL TRAINS (${allCalls.length})`;
+    const chipStUp = document.getElementById('chip-st-upcoming');
+    const chipStAll = document.getElementById('chip-st-all');
+    if (chipStUp) chipStUp.textContent = `UPCOMING (${upcomingCount})`;
+    if (chipStAll) chipStAll.textContent = `ALL TRAINS (${allCalls.length})`;
 
+    if (!list) return;
     list.innerHTML = '';
 
     if (filtered.length === 0) {
@@ -1232,11 +1521,11 @@
 
     if (!state.selectedFromStation || !state.selectedToStation) return;
 
-    tmrwFrom.textContent = state.selectedFromStation.name;
-    tmrwTo.textContent = state.selectedToStation.name;
+    if (tmrwFrom) tmrwFrom.textContent = state.selectedFromStation.name;
+    if (tmrwTo) tmrwTo.textContent = state.selectedToStation.name;
 
     const fareInfo = calculateFare(state.selectedFromStation, state.selectedToStation);
-    fareVal.textContent = `₹${fareInfo.fare} Fare (${fareInfo.stations} Stops)`;
+    if (fareVal) fareVal.textContent = `₹${fareInfo.fare} Fare (${fareInfo.stations} Stops)`;
 
     const tomorrow = new Date(state.currentDate);
     tomorrow.setDate(tomorrow.getDate() + 1);
@@ -1250,11 +1539,12 @@
 
     const ttData = await getTimetableData(ttName);
     if (!ttData || !ttData.trips) {
-      list.innerHTML = '<div class="empty-state"><p>No timetable data for tomorrow.</p></div>';
+      if (list) list.innerHTML = '<div class="empty-state"><p>No timetable data for tomorrow.</p></div>';
       return;
     }
 
     const journeys = getUpcomingJourneys(ttData.trips, state.selectedFromStation.id, state.selectedToStation.id);
+    if (!list) return;
     list.innerHTML = '';
 
     if (journeys.length === 0) {
@@ -1263,8 +1553,8 @@
     }
 
     const dur = getDurationMinutes(journeys[0].departureTime, journeys[0].arrivalTime);
-    durVal.textContent = `~${dur} min`;
-    countVal.textContent = `${journeys.length} Services`;
+    if (durVal) durVal.textContent = `~${dur} min`;
+    if (countVal) countVal.textContent = `${journeys.length} Services`;
 
     const isSunday = tomorrow.getDay() === 0;
     journeys.forEach((item, idx) => {
@@ -1311,33 +1601,34 @@
 
     if (!state.selectedFromStation || !state.selectedToStation) return;
 
-    fromNameElem.textContent = state.selectedFromStation.name.toUpperCase();
-    toNameElem.textContent = state.selectedToStation.name.toUpperCase();
+    if (fromNameElem) fromNameElem.textContent = state.selectedFromStation.name.toUpperCase();
+    if (toNameElem) toNameElem.textContent = state.selectedToStation.name.toUpperCase();
 
     const dateOptions = { weekday: 'short', day: 'numeric', month: 'short' };
-    dateDisplay.textContent = state.selectedTravelDate.toLocaleDateString('en-US', dateOptions);
+    if (dateDisplay) dateDisplay.textContent = state.selectedTravelDate.toLocaleDateString('en-US', dateOptions);
 
     const ttName = getTimetableNameForDate(state.selectedTravelDate);
-    scheduleElem.textContent = `Schedule: ${ttName}`;
+    if (scheduleElem) scheduleElem.textContent = `Schedule: ${ttName}`;
 
     const ttData = await getTimetableData(ttName);
     if (!ttData || !ttData.trips) {
-      list.innerHTML = '<div class="empty-state"><p>No timetable data available.</p></div>';
+      if (list) list.innerHTML = '<div class="empty-state"><p>No timetable data available.</p></div>';
       return;
     }
 
     const allJourneys = getUpcomingJourneys(ttData.trips, state.selectedFromStation.id, state.selectedToStation.id);
+    if (!list) return;
     list.innerHTML = '';
 
     if (allJourneys.length === 0) {
       list.innerHTML = '<div class="empty-state"><p>No scheduled services found between these stations.</p></div>';
-      totalElem.textContent = 'Total: 0';
+      if (totalElem) totalElem.textContent = 'Total: 0';
       return;
     }
 
     const dur = getDurationMinutes(allJourneys[0].departureTime, allJourneys[0].arrivalTime);
-    durElem.textContent = `Travel time: ${dur} min`;
-    totalElem.textContent = `Total Trains: ${allJourneys.length}`;
+    if (durElem) durElem.textContent = `Travel time: ${dur} min`;
+    if (totalElem) totalElem.textContent = `Total Trains: ${allJourneys.length}`;
 
     const isSunday = state.selectedTravelDate.getDay() === 0;
 

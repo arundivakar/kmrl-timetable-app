@@ -1,4 +1,4 @@
-const CACHE_NAME = 'kmrl-pwa-v2';
+const CACHE_NAME = 'kmrl-pwa-v3';
 const PRECACHE_ASSETS = [
   './',
   'index.html',
@@ -30,6 +30,7 @@ self.addEventListener('activate', (event) => {
       return Promise.all(
         keys.map((key) => {
           if (key !== CACHE_NAME) {
+            console.log('Evicting stale cache:', key);
             return caches.delete(key);
           }
         })
@@ -50,7 +51,27 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  // Cache-first, network fallback with background cache update
+  const url = new URL(request.url);
+  const isCoreAsset = url.pathname.endsWith('/') || 
+                      url.pathname.endsWith('index.html') || 
+                      url.pathname.includes('styles.css') || 
+                      url.pathname.includes('app.js');
+
+  // Network-First for core web application assets so deployed updates are ALWAYS instant
+  if (isCoreAsset) {
+    event.respondWith(
+      fetch(request).then((networkResponse) => {
+        if (networkResponse && networkResponse.status === 200) {
+          const responseToCache = networkResponse.clone();
+          caches.open(CACHE_NAME).then((cache) => cache.put(request, responseToCache));
+        }
+        return networkResponse;
+      }).catch(() => caches.match(request))
+    );
+    return;
+  }
+
+  // Cache-first, network fallback with background cache update for static data & images
   event.respondWith(
     caches.match(request).then((cachedResponse) => {
       const fetchPromise = fetch(request).then((networkResponse) => {
